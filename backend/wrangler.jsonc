@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mcp-workspace-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-11",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "dev": {
+    "port": 2300
+  },
+  // Default/Local DB configuration
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mcp-workspace",
+      "database_id": "local"
+    }
+  ],
+  // Environment-specific overrides
+  "env": {
+    "staging": {
+      "name": "mcp-workspace-backend-staging",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "mcp-workspace-staging",
+          "database_id": "INSERT_DB_ID_HERE"
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging"
+      }
+    },
+    "production": {
+      "name": "mcp-workspace-backend-production",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "mcp-workspace-prod",
+          "database_id": "INSERT_DB_ID_HERE"
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "production"
+      }
+    }
+  }
+}

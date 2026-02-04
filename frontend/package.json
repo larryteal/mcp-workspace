@@ -1,0 +1,33 @@
+{
+  "name": "mcp-workspace-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:staging": "tsc -b && vite build --mode staging",
+    "build:production": "tsc -b && vite build --mode production",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "pnpm run build:staging && wrangler deploy --env staging",
+    "deploy:production": "pnpm run build:production && wrangler deploy --env production",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "antd": "^6.2.2",
+    "axios": "^1.13.4",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "~5.6.3",
+    "vite": "^6.4.1",
+    "wrangler": "^4.62.0"
+  }
+}

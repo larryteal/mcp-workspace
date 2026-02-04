@@ -1,0 +1,169 @@
+/* MCP Item Container */
+.item {
+  border-radius: 6px;
+  user-select: none;
+}
+
+.item.expanded {
+  background-color: var(--surface-inset);
+}
+
+/* MCP Header Row */
+.mcpHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.item:not(.expanded) .mcpHeader:hover {
+  background-color: var(--surface-inset);
+}
+
+.mcpInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.folderIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.mcpName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dirty indicator - VSCode style dot */
+.dirtyIndicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--text-primary);
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.subItem.selected .dirtyIndicator {
+  background-color: var(--accent);
+}
+
+/* MCP Actions */
+.mcpActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.mcpActions.visible {
+  opacity: 1;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.actionBtn:hover {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Sub Items Container */
+.subItems {
+  padding: 4px 0;
+}
+
+/* Sub Item Row */
+.subItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 8px 36px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.subItem:hover:not(.selected) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.subItem.selected {
+  background-color: #37373d;
+}
+
+.subItemContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.subItemIcon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.subItem.selected .subItemIcon {
+  color: var(--accent);
+}
+
+.subItemText {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.subItem.selected .subItemText {
+  color: var(--accent);
+}
+
+.toolName {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subItem.selected .toolName {
+  color: var(--accent);
+}
+
+/* Sub Item Actions */
+.subItemActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.subItemActions.visible {
+  opacity: 1;
+}

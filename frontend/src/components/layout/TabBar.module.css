@@ -1,0 +1,118 @@
+.tabBar {
+  display: flex;
+  align-items: flex-end;
+  height: var(--tab-bar-height);
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  height: 100%;
+  align-items: flex-end;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  background-color: var(--surface-inset);
+}
+
+.tab.active {
+  border-bottom-color: var(--accent);
+}
+
+.icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.tab.active .icon {
+  color: var(--accent);
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.tab.active .title {
+  color: var(--accent);
+}
+
+/* Close area: fixed size container, shows dot or close button */
+.closeArea {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Dirty indicator - VSCode style dot */
+.dirtyIndicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--text-primary);
+}
+
+.tab.active .dirtyIndicator {
+  background-color: var(--accent);
+}
+
+.closeBtn {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+/* Show close button on tab hover or active tab */
+.tab:hover .closeBtn,
+.tab.active .closeBtn {
+  opacity: 1;
+}
+
+/* Hide dirty dot when close button is visible */
+.tab:hover .dirtyIndicator,
+.tab.active .dirtyIndicator {
+  display: none;
+}
+
+.closeBtn:hover {
+  color: var(--text-primary);
+  background-color: var(--border);
+}

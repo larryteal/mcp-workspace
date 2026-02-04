@@ -1,0 +1,20 @@
+.layout {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  min-width: 880px; /* sidebar (280px) + main content (600px) */
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 600px;
+  overflow: hidden;
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+  background-color: var(--background);
+}

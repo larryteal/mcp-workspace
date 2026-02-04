@@ -1,0 +1,157 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Radio button row */
+.typeRow {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.radioOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.radioInput {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-muted);
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.radioOption.selected .radio {
+  border-color: var(--accent);
+  background-color: var(--accent);
+}
+
+.radioDot {
+  width: 6px;
+  height: 6px;
+  background-color: #ffffff;
+  border-radius: 50%;
+}
+
+.radioLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.radioOption.selected .radioLabel {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.radioOption.disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.radioOption.disabled .radio {
+  border-color: var(--text-muted);
+}
+
+.radioOption.disabled .radioLabel {
+  color: var(--text-muted);
+}
+
+/* Content area */
+.content {
+  min-height: 120px;
+}
+
+/* Empty message for "none" type */
+.emptyMessage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  background-color: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Code editor for "raw" type */
+.codeEditor {
+  position: relative;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 16px;
+  background-color: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Binary upload - Drop zone */
+.dropZone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px;
+  background-color: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.dropZone:hover {
+  border-color: var(--text-muted);
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadIcon {
+  color: var(--text-muted);
+}
+
+.dropText {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.dropHint {
+  font-size: 12px;
+  color: var(--text-muted);
+}

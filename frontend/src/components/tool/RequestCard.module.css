@@ -1,0 +1,50 @@
+.urlBar {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.methodSelect {
+  flex-shrink: 0;
+}
+
+.urlInput {
+  flex: 1;
+  height: 44px;
+  padding: 0 14px;
+  background-color: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.urlInput:hover {
+  border-color: var(--text-muted);
+}
+
+.urlInput:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.urlInput::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+}
+
+.tabContent {
+  margin-top: var(--spacing-lg);
+  min-height: 200px;
+}
+
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.monoInput input {
+  font-family: var(--font-mono);
+}
