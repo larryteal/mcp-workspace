@@ -4,6 +4,7 @@ import { useMCP } from '@/context/MCPContext';
 import { useTabs } from '@/context/TabContext';
 import { useDirty } from '@/context/DirtyContext';
 import { MCPTreeItem } from './MCPTreeItem';
+import { confirmDialog, alertDialog } from '@/components/common';
 import styles from './MCPTree.module.css';
 
 export function MCPTree() {
@@ -34,11 +35,11 @@ export function MCPTree() {
         // Mark all as saved
         markAllSaved(services);
       } else {
-        alert('Failed to save all configurations');
+        await alertDialog({ title: 'Save Failed', message: 'Failed to save all configurations.' });
       }
     } catch (error) {
       console.error('Save all error:', error);
-      alert('Failed to save all configurations');
+      await alertDialog({ title: 'Save Failed', message: 'Failed to save all configurations.' });
     } finally {
       setSaving(false);
     }
@@ -47,7 +48,11 @@ export function MCPTree() {
   const handleSync = async () => {
     // Show confirmation dialog if there are unsaved changes
     if (hasAnyDirty()) {
-      const confirmed = window.confirm('This will overwrite local changes with server data. Continue?');
+      const confirmed = await confirmDialog({
+        title: 'Sync from Server',
+        message: 'This will overwrite local changes with server data. Continue?',
+        confirmText: 'Continue',
+      });
       if (!confirmed) return;
     }
 
@@ -56,7 +61,7 @@ export function MCPTree() {
       await syncFromServer();
     } catch (error) {
       console.error('Sync error:', error);
-      alert('Failed to sync from server');
+      await alertDialog({ title: 'Sync Failed', message: 'Failed to sync from server.' });
     } finally {
       setSyncing(false);
     }

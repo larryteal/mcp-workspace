@@ -7,6 +7,7 @@ import {
 } from '@/services/storage';
 const generateUUID = () => crypto.randomUUID();
 import { useWorkspace } from '@/context/WorkspaceContext';
+import { alertDialog } from '@/components/common';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -310,7 +311,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
   const saveAllToServer = useCallback(async (): Promise<boolean> => {
     const error = validateAllBeforeSave();
     if (error) {
-      alert(error);
+      await alertDialog({ title: 'Validation Error', message: error });
       return false;
     }
 

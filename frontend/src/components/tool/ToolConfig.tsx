@@ -5,6 +5,7 @@ import { ResponseCard } from './ResponseCard';
 import { useMCP } from '@/context/MCPContext';
 import { useTabs } from '@/context/TabContext';
 import { useApiTest } from '@/hooks/useApiTest';
+import { alertDialog } from '@/components/common';
 import type { Tool } from '@/types';
 import styles from './ToolConfig.module.css';
 
@@ -35,10 +36,10 @@ export function ToolConfig({ tool, mcpId }: ToolConfigProps) {
     }
   };
 
-  const handleTest = () => {
+  const handleTest = async () => {
     const error = validateBeforeSave(mcpId);
     if (error) {
-      alert(error);
+      await alertDialog({ title: 'Validation Error', message: error });
       return;
     }
     runTest(tool);

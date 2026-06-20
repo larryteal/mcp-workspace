@@ -4,6 +4,7 @@ import { useMCP } from '@/context/MCPContext';
 import { useTabs } from '@/context/TabContext';
 import { useDirty } from '@/context/DirtyContext';
 import type { MCPService, Tool } from '@/types';
+import { confirmDialog } from '@/components/common';
 import styles from './MCPTreeItem.module.css';
 
 interface MCPTreeItemProps {
@@ -73,17 +74,29 @@ export function MCPTreeItem({ service }: MCPTreeItemProps) {
     });
   };
 
-  const handleDeleteService = (e: React.MouseEvent) => {
+  const handleDeleteService = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Delete "${service.name}"?`)) {
+    const confirmed = await confirmDialog({
+      title: 'Delete MCP Service',
+      message: `Delete "${service.name}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (confirmed) {
       closeTabsByMcpId(service.id);
       deleteService(service.id);
     }
   };
 
-  const handleDeleteTool = (e: React.MouseEvent, tool: Tool) => {
+  const handleDeleteTool = async (e: React.MouseEvent, tool: Tool) => {
     e.stopPropagation();
-    if (confirm(`Delete "${tool.name}"?`)) {
+    const confirmed = await confirmDialog({
+      title: 'Delete Tool',
+      message: `Delete "${tool.name}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      danger: true,
+    });
+    if (confirmed) {
       deleteTool(service.id, tool.id);
     }
   };

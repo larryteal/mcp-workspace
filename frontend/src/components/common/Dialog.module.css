@@ -1,0 +1,61 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background-color: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.overlay.visible {
+  opacity: 1;
+}
+
+.dialog {
+  width: 100%;
+  max-width: 400px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-xl);
+  transform: translateY(8px) scale(0.98);
+  transition: transform var(--transition-fast);
+}
+
+.overlay.visible .dialog {
+  transform: translateY(0) scale(1);
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.message {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xl);
+}
+
+.danger {
+  background-color: var(--error);
+}
+
+.danger:hover:not(:disabled) {
+  background-color: #ff7875;
+}
