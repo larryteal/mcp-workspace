@@ -1,88 +1,40 @@
 const VAR_PATTERN = /\{\{(\w+)\}\}/g;
 
 /**
- * Extract all {{varName}} references from a string.
+ * Convert an MCP argument value to its string form for placeholder substitution.
+ * MCP arguments can be any JSON type, not just strings.
+ *  - string            → as-is
+ *  - number / boolean  → String()
+ *  - null / undefined  → '' (treated as "not provided")
+ *  - object / array    → JSON.stringify
  */
-export function extractVariables(text: string): string[] {
-  const vars: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = VAR_PATTERN.exec(text)) !== null) {
-    if (!vars.includes(match[1])) {
-      vars.push(match[1]);
-    }
+function stringifyValue(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (v === null || v === undefined) return '';
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
   }
-  return vars;
-}
-
-/**
- * Collect all {{var}} references from a tool payload.
- */
-export function collectAllVariables(payload: {
-  url: string;
-  params: Record<string, string> | null;
-  headers: Record<string, string> | null;
-  cookies: Record<string, string> | null;
-  body: { type: string; payload: string | Record<string, string> | null };
-}): string[] {
-  const all = new Set<string>();
-
-  for (const v of extractVariables(payload.url)) all.add(v);
-
-  const collectRecord = (rec: Record<string, string> | null) => {
-    if (!rec) return;
-    for (const val of Object.values(rec)) {
-      for (const v of extractVariables(val)) all.add(v);
-    }
-  };
-
-  collectRecord(payload.params);
-  collectRecord(payload.headers);
-  collectRecord(payload.cookies);
-
-  if (payload.body.payload) {
-    if (typeof payload.body.payload === 'string') {
-      for (const v of extractVariables(payload.body.payload)) all.add(v);
-    } else {
-      collectRecord(payload.body.payload);
-    }
-  }
-
-  return Array.from(all);
-}
-
-/**
- * Validate that all {{var}} references exist in inputSchema.properties.
- * Returns list of missing variable names, or empty array if valid.
- */
-export function validateVariables(
-  payload: {
-    url: string;
-    params: Record<string, string> | null;
-    headers: Record<string, string> | null;
-    cookies: Record<string, string> | null;
-    body: { type: string; payload: string | Record<string, string> | null };
-  },
-  inputSchema: Record<string, unknown> | null,
-): string[] {
-  const refs = collectAllVariables(payload);
-  if (refs.length === 0) return [];
-
-  const properties = (inputSchema as { properties?: Record<string, unknown> } | null)?.properties ?? {};
-  return refs.filter((v) => !(v in properties));
 }
 
 /**
  * Substitute {{var}} placeholders with values from the provided map.
+ * - Non-string values are coerced (see stringifyValue).
+ * - Unknown placeholders resolve to '' so a literal `{{var}}` is never leaked
+ *   to the upstream API (required vars are guaranteed present by schema
+ *   validation; this only affects optional/unprovided ones).
  */
-export function substituteString(text: string, values: Record<string, string>): string {
-  return text.replace(VAR_PATTERN, (match, name) => {
-    return name in values ? values[name] : match;
+export function substituteString(text: string, values: Record<string, unknown>): string {
+  return text.replace(VAR_PATTERN, (_match, name: string) => {
+    return name in values ? stringifyValue(values[name]) : '';
   });
 }
 
 export function substituteRecord(
   rec: Record<string, string> | null,
-  values: Record<string, string>,
+  values: Record<string, unknown>,
 ): Record<string, string> | null {
   if (!rec) return null;
   const result: Record<string, string> = {};
@@ -100,7 +52,7 @@ export function substitutePayload(
     cookies: Record<string, string> | null;
     body: { type: string; payload: string | Record<string, string> | null };
   },
-  values: Record<string, string>,
+  values: Record<string, unknown>,
 ) {
   return {
     url: substituteString(payload.url, values),
