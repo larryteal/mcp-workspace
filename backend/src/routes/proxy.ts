@@ -70,6 +70,8 @@ proxy.post('/test', async (c) => {
         headers: {},
         cookies: [],
         body: '',
+        encoding: 'text' as const,
+        mimeType: '',
       },
       502,
     );
