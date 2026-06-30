@@ -3,6 +3,7 @@ import { Card, Input, TextArea, SubTabs, Select } from '@/components/common';
 import { KeyValueTable } from './KeyValueTable';
 import { BodyEditor } from './BodyEditor';
 import type { Tool, HttpMethod, BodyType, KeyValueItem } from '@/types';
+import { validateSchemaString } from '@/utils/schema';
 import styles from './RequestCard.module.css';
 
 interface RequestCardProps {
@@ -47,6 +48,10 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
   useEffect(() => {
     tabStateMap.set(tool.id, activeTab);
   }, [tool.id, activeTab]);
+
+  // Live schema validation (same rules as the backend, minus the Zod check).
+  const inputSchemaError = validateSchemaString(tool.inputSchema ?? '');
+  const outputSchemaError = validateSchemaString(tool.outputSchema ?? '');
 
   return (
     <Card title="Request">
@@ -93,6 +98,7 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
               label="Input Schema"
               value={tool.inputSchema ?? ''}
               onChange={(e) => onUpdate({ inputSchema: e.target.value })}
+              error={inputSchemaError ?? undefined}
               placeholder={[
                 '{',
                 '  "$schema": "https://json-schema.org/draft/2020-12/schema",',
@@ -113,6 +119,7 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
               label="Output Schema"
               value={tool.outputSchema ?? ''}
               onChange={(e) => onUpdate({ outputSchema: e.target.value })}
+              error={outputSchemaError ?? undefined}
               placeholder={[
                 '{',
                 '  "$schema": "https://json-schema.org/draft/2020-12/schema",',

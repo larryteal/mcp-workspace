@@ -34,12 +34,15 @@ export function MCPTree() {
       if (success) {
         // Mark all as saved
         markAllSaved(services);
-      } else {
-        await alertDialog({ title: 'Save Failed', message: 'Failed to save all configurations.' });
       }
+      // success === false means front-end validation failed; MCPContext already
+      // showed a specific dialog, so we don't show a duplicate generic one here.
     } catch (error) {
       console.error('Save all error:', error);
-      await alertDialog({ title: 'Save Failed', message: 'Failed to save all configurations.' });
+      await alertDialog({
+        title: 'Save Failed',
+        message: error instanceof Error ? error.message : 'Failed to save configurations.',
+      });
     } finally {
       setSaving(false);
     }

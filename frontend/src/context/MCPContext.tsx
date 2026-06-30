@@ -8,6 +8,7 @@ import {
 const generateUUID = () => crypto.randomUUID();
 import { useWorkspace } from '@/context/WorkspaceContext';
 import { alertDialog } from '@/components/common';
+import { validateSchemaString } from '@/utils/schema';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -303,6 +304,15 @@ export function MCPProvider({ children }: { children: ReactNode }) {
           return `Tool ID '${tool.id}' already exists in MCP '${service.name}'`;
         }
         toolIds.add(tool.id);
+
+        const inputErr = validateSchemaString(tool.inputSchema ?? '');
+        if (inputErr) {
+          return `Tool '${tool.name}' in MCP '${service.name}': Input Schema — ${inputErr}`;
+        }
+        const outputErr = validateSchemaString(tool.outputSchema ?? '');
+        if (outputErr) {
+          return `Tool '${tool.name}' in MCP '${service.name}': Output Schema — ${outputErr}`;
+        }
       }
     }
     return null;
@@ -317,14 +327,13 @@ export function MCPProvider({ children }: { children: ReactNode }) {
 
     setIsSaving(true);
     try {
-      const success = await saveAllToServerFn(workspaceId, services);
-      if (success) {
-        // Update server snapshot after successful save
-        serverSnapshotRef.current = services;
-        storageService.saveServerSnapshot(workspaceId, services);
-        onServerSnapshotLoadedRef.current?.(services);
-      }
-      return success;
+      // Throws on failure (with the backend's reason); reaching here means saved.
+      await saveAllToServerFn(workspaceId, services);
+      // Update server snapshot after successful save
+      serverSnapshotRef.current = services;
+      storageService.saveServerSnapshot(workspaceId, services);
+      onServerSnapshotLoadedRef.current?.(services);
+      return true;
     } finally {
       setIsSaving(false);
     }

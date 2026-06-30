@@ -1,6 +1,5 @@
 import axios from 'axios';
 import type { MCPService, Tool, ProxyTestResponse } from '@/types';
-import { md5 } from '@/utils/md5';
 
 const API_BASE = import.meta.env.VITE_MCP_API_BASE_URL ?? '';
 
@@ -81,18 +80,23 @@ export const storageService = {
 };
 
 /**
- * Save all services to server (full replace)
- * Backend stores data in frontend format directly - no transformation needed
- * widHash is MD5 of workspaceId, used for MCP URL security
+ * Save all services to server (full replace).
+ * Backend stores data in frontend format directly and computes wid_hash itself
+ * from the workspace id, so the client does not send it.
  */
-export async function saveAllToServer(workspaceId: string, services: MCPService[]): Promise<boolean> {
+export async function saveAllToServer(workspaceId: string, services: MCPService[]): Promise<void> {
   try {
-    const widHash = md5(workspaceId);
-    await axios.put(`${API_BASE}/api/workspace/${workspaceId}/mcp-services/batch`, { services, widHash });
-    return true;
+    await axios.put(`${API_BASE}/api/workspace/${workspaceId}/mcp-services/batch`, { services });
   } catch (error) {
     console.error('Failed to save all services:', error);
-    return false;
+    // Surface the backend's specific reason (invalid schema, payload too large,
+    // ...) instead of swallowing it, so the UI can tell the user why it failed.
+    let message = 'Failed to save configurations.';
+    const data = axios.isAxiosError(error) ? error.response?.data : undefined;
+    if (data && typeof (data as { error?: unknown }).error === 'string') {
+      message = (data as { error: string }).error;
+    }
+    throw new Error(message);
   }
 }
 
