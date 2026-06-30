@@ -24,6 +24,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20260129.0
         version: 4.20260203.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
       wrangler:
         specifier: ^4.4.0
         version: 4.62.0(@cloudflare/workers-types@4.20260203.0)
@@ -1033,8 +1036,8 @@ packages:
     resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
     engines: {node: '>= 0.6'}
 
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -1165,12 +1168,12 @@ snapshots:
       react: 19.2.4
       zod: 4.3.6
 
-  '@cloudflare/codemode@0.0.6(agents@0.3.7)(ai@6.0.68(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6)':
+  '@cloudflare/codemode@0.0.6(agents@0.3.7)(ai@6.0.68(zod@4.3.6))(typescript@6.0.3)(zod@4.3.6)':
     dependencies:
       agents: 0.3.7(@cloudflare/ai-chat@0.0.5)(@cloudflare/codemode@0.0.6)(@cloudflare/workers-types@4.20260203.0)(ai@6.0.68(zod@4.3.6))(hono@4.11.7)(react@19.2.4)(zod@4.3.6)
       ai: 6.0.68(zod@4.3.6)
       zod: 4.3.6
-      zod-to-ts: 2.0.0(typescript@5.9.3)(zod@4.3.6)
+      zod-to-ts: 2.0.0(typescript@6.0.3)(zod@4.3.6)
     transitivePeerDependencies:
       - typescript
 
@@ -1456,7 +1459,7 @@ snapshots:
     dependencies:
       '@cfworker/json-schema': 4.1.1
       '@cloudflare/ai-chat': 0.0.5(agents@0.3.7)(ai@6.0.68(zod@4.3.6))(react@19.2.4)(zod@4.3.6)
-      '@cloudflare/codemode': 0.0.6(agents@0.3.7)(ai@6.0.68(zod@4.3.6))(typescript@5.9.3)(zod@4.3.6)
+      '@cloudflare/codemode': 0.0.6(agents@0.3.7)(ai@6.0.68(zod@4.3.6))(typescript@6.0.3)(zod@4.3.6)
       '@modelcontextprotocol/sdk': 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.7)(zod@4.3.6)
       ai: 6.0.68(zod@4.3.6)
       cron-schedule: 6.0.0
@@ -2024,7 +2027,7 @@ snapshots:
       media-typer: 1.1.0
       mime-types: 3.0.2
 
-  typescript@5.9.3: {}
+  typescript@6.0.3: {}
 
   undici@7.18.2: {}
 
@@ -2105,9 +2108,9 @@ snapshots:
     dependencies:
       zod: 4.3.6
 
-  zod-to-ts@2.0.0(typescript@5.9.3)(zod@4.3.6):
+  zod-to-ts@2.0.0(typescript@6.0.3)(zod@4.3.6):
     dependencies:
-      typescript: 5.9.3
+      typescript: 6.0.3
       zod: 4.3.6
 
   zod@4.3.6: {}

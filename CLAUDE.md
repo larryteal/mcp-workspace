@@ -65,7 +65,7 @@ Single `workspaces` table storing workspace data as JSON. Each workspace has:
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/workspace/:wid/mcp-services` | Fetch workspace data (returns MCPService[]) |
-| PUT | `/api/workspace/:wid/mcp-services/batch` | Save all (full replace via UPSERT), body includes `widHash` |
+| PUT | `/api/workspace/:wid/mcp-services/batch` | Save all (full replace via UPSERT); backend validates payload and computes `wid_hash` itself |
 | POST | `/api/workspace/:wid/proxy/test` | Proxy test request (accepts Tool directly) |
 | ALL | `/workspace/:widHash/mcp/:serviceId` | MCP Streamable HTTP (JSON-RPC), uses MD5 hash |
 
@@ -73,12 +73,21 @@ Single `workspaces` table storing workspace data as JSON. Each workspace has:
 
 ### MCP Streamable HTTP
 
-The `/workspace/:widHash/mcp/:serviceId` endpoint implements MCP Streamable HTTP using McpServer from the MCP SDK and createMcpHandler from agents/mcp for Cloudflare Workers transport. Tools are registered dynamically from stored JSON, with JSON Schema converted to Zod schema for input validation.
+The `/workspace/:widHash/mcp/:serviceId` endpoint implements MCP Streamable HTTP using McpServer from the MCP SDK and createMcpHandler from agents/mcp for Cloudflare Workers transport. Tools are registered dynamically from stored JSON.
+
+**Schema handling** (`utils/schema.ts` `compileSchema` — single source of truth for both save-time validation and runtime registration): inputSchema/outputSchema are optional; when present they must be a valid JSON object with top-level `type: "object"` that `z.fromJSONSchema()` can convert. Invalid (non-empty) schemas are rejected on save (400) and skip the offending tool at runtime (fail-closed). Each tool registers in its own try/catch, so a bad/duplicate tool never 500s the whole service.
 
 Supported MCP methods:
 - `initialize` — returns server info (name, version)
-- `tools/list` — returns tools with inputSchema
-- `tools/call` — substitutes `{{var}}` placeholders, executes HTTP request, returns result
+- `tools/list` — returns tools with inputSchema (and outputSchema when declared)
+- `tools/call` — substitutes `{{var}}` placeholders, executes the HTTP request, maps the response (below)
+
+**`tools/call` response mapping**:
+- Upstream 4xx/5xx → `isError: true` with the upstream body as content
+- Text returned verbatim; binary read losslessly and mapped by Content-Type: `image/*` → image, `audio/*` → audio, other binary → embedded resource (base64 blob); `image/svg+xml` is treated as text. Bodies are stream-read with a 10 MB cap (oversized → error).
+- When a tool declares an outputSchema and the upstream returns a JSON object, `structuredContent` is included and the SDK strictly validates it (binary output is incompatible with outputSchema)
+- Transport/execution failures return a generic `isError` ("Upstream request failed."); details are logged, not exposed to the LLM
+- A non-existent service returns a JSON-RPC top-level error (code -32602) over HTTP 200
 
 ### MCP URL Security
 
@@ -91,8 +100,8 @@ MCP URLs use MD5 hash of workspace ID instead of the raw UUID for security purpo
 - MCP (service) URL: `/workspace/{MD5(workspaceId)}/mcp/{serviceId}`
 
 **Implementation**:
-- Frontend computes `MD5(workspaceId)` using pure JS implementation (`frontend/src/utils/md5.ts`)
-- Frontend sends `widHash` to backend when saving workspace data
+- Frontend computes `MD5(workspaceId)` (`frontend/src/utils/md5.ts`) only to display the MCP URL
+- Backend computes `wid_hash = MD5(workspaceId)` server-side on save and never trusts a client-supplied hash, using a byte-identical MD5 implementation (`backend/src/utils/md5.ts`)
 - Backend stores `wid_hash` in database and looks up by hash for MCP requests
 - MCP endpoint queries `WHERE wid_hash = ?` instead of `WHERE id = ?`
 
