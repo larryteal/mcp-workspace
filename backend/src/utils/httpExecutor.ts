@@ -121,19 +121,26 @@ export async function executeHttpRequest(config: {
     responseHeaders[k] = v;
   });
 
-  // Extract cookies from Set-Cookie
+  // Extract cookies from Set-Cookie. getSetCookie() returns each Set-Cookie
+  // header as its own entry, so we must NOT split on ',' (which would corrupt
+  // cookies whose attributes contain commas, e.g. `Expires=Wed, 09 Jun 2021`).
+  // Fall back to a single-entry get() for runtimes lacking getSetCookie().
   const responseCookies: Array<{ key: string; value: string }> = [];
-  const setCookie = response.headers.get('set-cookie');
-  if (setCookie) {
-    for (const part of setCookie.split(',')) {
-      const trimmed = part.trim();
-      const eqIdx = trimmed.indexOf('=');
-      if (eqIdx > 0) {
-        const key = trimmed.substring(0, eqIdx);
-        const semiIdx = trimmed.indexOf(';', eqIdx);
-        const value = semiIdx > 0 ? trimmed.substring(eqIdx + 1, semiIdx) : trimmed.substring(eqIdx + 1);
-        responseCookies.push({ key, value });
-      }
+  // getSetCookie() exists at runtime (Workers/undici) but isn't in the Headers
+  // type here; feature-detect through a typed view to stay type-safe.
+  const respHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies =
+    typeof respHeaders.getSetCookie === 'function'
+      ? respHeaders.getSetCookie()
+      : (response.headers.get('set-cookie') ? [response.headers.get('set-cookie')!] : []);
+  for (const cookie of setCookies) {
+    const trimmed = cookie.trim();
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx > 0) {
+      const key = trimmed.substring(0, eqIdx);
+      const semiIdx = trimmed.indexOf(';', eqIdx);
+      const value = semiIdx > 0 ? trimmed.substring(eqIdx + 1, semiIdx) : trimmed.substring(eqIdx + 1);
+      responseCookies.push({ key, value });
     }
   }
 

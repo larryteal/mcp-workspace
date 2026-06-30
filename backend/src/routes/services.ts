@@ -49,12 +49,27 @@ function validatePayloadSchemas(servicesPayload: unknown[]): string | null {
     if (!Array.isArray(tools)) {
       return `services[${i}].tools must be an array`;
     }
+    const toolNameKeys = new Set<string>();
     for (let j = 0; j < tools.length; j++) {
       const tool = tools[j];
       if (typeof tool !== 'object' || tool === null) {
         return `services[${i}].tools[${j}] must be an object`;
       }
-      const t = tool as { inputSchema?: unknown; outputSchema?: unknown };
+      const t = tool as { name?: unknown; id?: unknown; inputSchema?: unknown; outputSchema?: unknown };
+
+      // MCP identifies tools by name; the runtime dedups on (name || id) and
+      // silently drops repeats, so reject duplicates on save (defensive: the
+      // shape is untrusted, so coerce non-string name/id to '').
+      const rawName = typeof t.name === 'string' ? t.name : '';
+      const rawId = typeof t.id === 'string' ? t.id : '';
+      const nameKey = rawName || rawId;
+      if (nameKey) {
+        if (toolNameKeys.has(nameKey)) {
+          return `services[${i}].tools[${j}] duplicate tool name '${rawName}' (tool names must be unique within a service)`;
+        }
+        toolNameKeys.add(nameKey);
+      }
+
       for (const field of ['inputSchema', 'outputSchema'] as const) {
         const v = t[field];
         if (v === undefined || v === null) continue; // empty/absent schema is allowed

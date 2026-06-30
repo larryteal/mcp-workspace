@@ -299,11 +299,20 @@ export function MCPProvider({ children }: { children: ReactNode }) {
       mcpIds.add(service.id);
 
       const toolIds = new Set<string>();
+      const toolNameKeys = new Set<string>();
       for (const tool of service.tools) {
         if (toolIds.has(tool.id)) {
           return `Tool ID '${tool.id}' already exists in MCP '${service.name}'`;
         }
         toolIds.add(tool.id);
+
+        // MCP identifies tools by name; the runtime dedups on (name || id) and
+        // silently drops repeats, so reject duplicates here with a clear message.
+        const nameKey = tool.name || tool.id;
+        if (toolNameKeys.has(nameKey)) {
+          return `Tool name '${tool.name}' is duplicated in MCP '${service.name}' (tool names must be unique)`;
+        }
+        toolNameKeys.add(nameKey);
 
         const inputErr = validateSchemaString(tool.inputSchema ?? '');
         if (inputErr) {
