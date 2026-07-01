@@ -14,7 +14,7 @@ interface TabContextType {
 
 const TabContext = createContext<TabContextType | null>(null);
 
-const generateId = () => Math.random().toString(36).substring(2, 9);
+const generateId = () => crypto.randomUUID();
 
 export function TabProvider({ children }: { children: ReactNode }) {
   const [tabs, setTabs] = useState<Tab[]>([]);

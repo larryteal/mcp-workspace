@@ -4,6 +4,7 @@ import { KeyValueTable } from './KeyValueTable';
 import { BodyEditor } from './BodyEditor';
 import type { Tool, HttpMethod, BodyType, KeyValueItem } from '@/types';
 import { validateSchemaString } from '@/utils/schema';
+import { validateName, validateUrl, validateText, LIMITS } from '@/utils/validate';
 import styles from './RequestCard.module.css';
 
 interface RequestCardProps {
@@ -49,9 +50,17 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
     tabStateMap.set(tool.id, activeTab);
   }, [tool.id, activeTab]);
 
-  // Live schema validation (same rules as the backend, minus the Zod check).
-  const inputSchemaError = validateSchemaString(tool.inputSchema ?? '');
-  const outputSchemaError = validateSchemaString(tool.outputSchema ?? '');
+  // Live field validation (same rules as the backend; Zod check stays server-side).
+  // Length is checked first so an over-long schema shows a clear "too long" error
+  // — the textareas are NOT maxLength-capped (that silently truncated pasted JSON
+  // and surfaced as a confusing "Not valid JSON").
+  const inputSchemaError =
+    validateText(tool.inputSchema, 'Input Schema', LIMITS.SCHEMA_MAX) ?? validateSchemaString(tool.inputSchema ?? '');
+  const outputSchemaError =
+    validateText(tool.outputSchema, 'Output Schema', LIMITS.SCHEMA_MAX) ?? validateSchemaString(tool.outputSchema ?? '');
+  const nameError = validateName(tool.name, 'Tool name');
+  const urlError = validateUrl(tool.url, 'URL');
+  const bodyError = validateText(tool.bodyContent, 'Body', LIMITS.SCHEMA_MAX);
 
   return (
     <Card title="Request">
@@ -68,8 +77,16 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
           value={tool.url}
           onChange={(e) => onUpdate({ url: e.target.value })}
           placeholder="Enter request URL..."
+          maxLength={LIMITS.URL_MAX}
         />
       </div>
+      {/* Show format/scheme/length errors live, but don't nag with
+          "cannot be empty" on a pristine new tool — save/Test still catches it. */}
+      {urlError && tool.url.trim() !== '' && (
+        <span style={{ color: 'var(--error)', fontSize: 12, display: 'block', marginTop: 4 }}>
+          {urlError}
+        </span>
+      )}
 
       <SubTabs
         tabs={requestTabs}
@@ -86,6 +103,8 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
               onChange={(e) => onUpdate({ name: e.target.value })}
               placeholder="myToolName"
               className={styles.monoInput}
+              error={nameError ?? undefined}
+              maxLength={LIMITS.NAME_MAX}
             />
             <TextArea
               label="Description"
@@ -93,6 +112,7 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
               onChange={(e) => onUpdate({ description: e.target.value })}
               placeholder="Describe what this tool does..."
               rows={3}
+              maxLength={LIMITS.TEXT_MAX}
             />
             <TextArea
               label="Input Schema"
@@ -159,6 +179,7 @@ export function RequestCard({ tool, onUpdate }: RequestCardProps) {
             onBodyContentChange={(bodyContent: string) => onUpdate({ bodyContent })}
             onBodyFormDataChange={(bodyFormData: KeyValueItem[]) => onUpdate({ bodyFormData })}
             onBodyUrlEncodedChange={(bodyUrlEncoded: KeyValueItem[]) => onUpdate({ bodyUrlEncoded })}
+            error={bodyError ?? undefined}
           />
         )}
 

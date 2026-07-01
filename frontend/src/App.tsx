@@ -6,13 +6,29 @@ import { MCPProvider, useMCP } from '@/context/MCPContext';
 import { TabProvider, useTabs } from '@/context/TabContext';
 import { DirtyProvider, useDirty } from '@/context/DirtyContext';
 import { WorkspaceProvider, useWorkspace } from '@/context/WorkspaceContext';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 /**
  * Component to sync MCPContext state changes to DirtyContext
  */
 function DirtyStateSync() {
   const { services, setOnServicesChange, setOnServerSnapshotLoaded } = useMCP();
-  const { updateCurrentState, setServerSnapshot } = useDirty();
+  const { updateCurrentState, setServerSnapshot, hasAnyDirty } = useDirty();
+
+  // Warn before leaving/reloading the page if there are unsaved changes.
+  // (Edits are persisted to localStorage so data isn't lost, but they haven't
+  // been pushed to the server yet — surface that instead of leaving silently.)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasAnyDirty()) {
+        e.preventDefault();
+        // Legacy browsers require returnValue to be set to trigger the prompt.
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasAnyDirty]);
 
   // Initialize DirtyContext with current services on mount
   useEffect(() => {
@@ -116,15 +132,47 @@ function ValidatedToolConfigPage() {
   return <ToolConfigPage />;
 }
 
+/**
+ * Scopes tab state to the current workspace. The `key={workspaceId}` forces a
+ * clean remount of TabProvider + AppContent (clearing tabs and AppContent's
+ * `initialUrlHandled` ref) if the workspace ever changes without a full reload.
+ * No effect today — workspaceId is stable within a session — but it future-proofs
+ * an in-session workspace switcher against stale tabs / a latched initial-URL flag.
+ */
+function TabScope() {
+  const { workspaceId } = useWorkspace();
+  return (
+    <TabProvider key={workspaceId}>
+      <AppContent />
+    </TabProvider>
+  );
+}
+
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setSelectedMcpId, setSelectedToolId, isLoading, dataLoaded, getService, getTool } = useMCP();
-  const { activeTabId, tabs, openTab } = useTabs();
+  const { activeTabId, tabs, openTab, closeTab } = useTabs();
   const { workspaceId } = useWorkspace();
 
   // Track if initial URL navigation has been handled (prevents reopening tabs after intentional close)
   const initialUrlHandled = useRef(false);
+
+  // Prune tabs pointing at a service/tool that no longer exists — e.g. after Sync
+  // replaced the local state with the server's (which may have removed them).
+  // Without this a stale "ghost" tab lingers in the bar pointing at a missing
+  // entity, leaving the UI in a confusing, hard-to-recover state.
+  // (getService/getTool change identity when `services` changes, so this re-runs
+  // after a sync. Local deletes already close their own tab before removal.)
+  useEffect(() => {
+    if (!dataLoaded) return;
+    for (const tab of tabs) {
+      const valid =
+        !!getService(tab.mcpId) &&
+        (tab.type === 'overview' || (!!tab.toolId && !!getTool(tab.mcpId, tab.toolId)));
+      if (!valid) closeTab(tab.id);
+    }
+  }, [dataLoaded, tabs, getService, getTool, closeTab]);
 
   // Handle direct URL navigation - only on initial load when no tabs exist
   useEffect(() => {
@@ -152,6 +200,11 @@ function AppContent() {
 
   // Sync navigation and selection with active tab
   useEffect(() => {
+    // Wait until data is loaded: on first mount activeTabId is null, and without
+    // this guard the else-branch below would navigate to the workspace root and
+    // strip a deep-link URL (/mcp/:id/...) before the initial-URL effect (which
+    // also waits for dataLoaded) gets a chance to open the corresponding tab.
+    if (!dataLoaded) return;
     if (activeTabId) {
       const activeTab = tabs.find(t => t.id === activeTabId);
       if (activeTab) {
@@ -167,12 +220,15 @@ function AppContent() {
         }
       }
     } else {
-      // No active tab, clear selection and navigate to workspace root
+      // No active tab, clear selection and navigate to workspace root.
+      // Use replace so the transient root navigation during deep-link load (the
+      // frame before openTab's activeTabId applies) doesn't push a junk history
+      // entry that the back button would land on.
       setSelectedMcpId(null);
       setSelectedToolId(null);
-      navigate(`/workspace/${workspaceId}`);
+      navigate(`/workspace/${workspaceId}`, { replace: true });
     }
-  }, [activeTabId, tabs, navigate, setSelectedMcpId, setSelectedToolId, workspaceId]);
+  }, [activeTabId, tabs, dataLoaded, navigate, setSelectedMcpId, setSelectedToolId, workspaceId]);
 
   // Show loading spinner while fetching data
   if (isLoading) {
@@ -209,17 +265,17 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <WorkspaceProvider>
-        <MCPProvider>
-          <DirtyProvider>
-            <DirtyStateSync />
-            <TabProvider>
-              <AppContent />
-            </TabProvider>
-          </DirtyProvider>
-        </MCPProvider>
-      </WorkspaceProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <WorkspaceProvider>
+          <MCPProvider>
+            <DirtyProvider>
+              <DirtyStateSync />
+              <TabScope />
+            </DirtyProvider>
+          </MCPProvider>
+        </WorkspaceProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

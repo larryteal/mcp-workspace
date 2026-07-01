@@ -21,6 +21,10 @@ export interface ExecuteResult {
 // ~33% and the Workers runtime has memory/response-size limits, so bound it.
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
+// Abort an upstream request that takes longer than this, so a slow/hanging
+// upstream can't tie up the request indefinitely.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export async function executeHttpRequest(config: {
   method: string;
   url: string;
@@ -28,6 +32,13 @@ export async function executeHttpRequest(config: {
   headers: Record<string, string> | null;
   cookies: Record<string, string> | null;
   body: { type: string; payload: string | Record<string, string> | null };
+  /**
+   * Whether requests to internal hosts (localhost/loopback AND private/link-local
+   * ranges) are permitted. Defaults to false (deny) so the safe behavior is the
+   * default; callers pass `true` only in the local dev environment. See
+   * `isInternalHost`.
+   */
+  allowInternalHosts?: boolean;
 }): Promise<ExecuteResult> {
   // Build URL with query params
   // URL may already contain query params (e.g., https://api.example.com/data?key=123)
@@ -38,6 +49,17 @@ export async function executeHttpRequest(config: {
   } catch {
     throw new Error(`Invalid URL: ${config.url}`);
   }
+
+  // Internal-host guard: outside local dev, refuse to proxy to localhost/loopback
+  // or private/link-local ranges so a configured tool can't make the server reach
+  // internal services or cloud metadata. Redirects are forbidden (fetch
+  // redirect:'error' below), so this initial-URL check can't be bypassed by a
+  // redirect. Residual gap: a DNS name that resolves to an internal IP is not
+  // caught (no resolution here) — best-effort, not airtight SSRF.
+  if (!config.allowInternalHosts && isInternalHost(url.hostname)) {
+    throw new Error(`Requests to internal/private addresses are not allowed in this environment: ${url.hostname}`);
+  }
+
   if (config.params) {
     for (const [k, v] of Object.entries(config.params)) {
       // Use set() to override any existing param with the same key from the URL
@@ -62,16 +84,25 @@ export async function executeHttpRequest(config: {
   }
 
   // Build body
+  // GET/HEAD requests cannot carry a body — fetch() throws if one is supplied.
+  // Silently drop any configured body for these methods rather than failing the
+  // whole request with an opaque "Upstream request failed".
+  const method = (config.method || 'GET').toUpperCase();
+  const methodAllowsBody = method !== 'GET' && method !== 'HEAD';
   let requestBody: BodyInit | undefined;
-  if (config.body.type !== 'none' && config.body.payload !== null) {
+  if (methodAllowsBody && config.body.type !== 'none' && config.body.payload !== null) {
     switch (config.body.type) {
       case 'raw-json':
-        headers.set('Content-Type', 'application/json');
+        // Only default the Content-Type when the user hasn't set one of their
+        // own (e.g. `application/json; charset=utf-8` or a vendor type), so an
+        // explicit header is preserved rather than clobbered. Headers.has is
+        // case-insensitive.
+        if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
         requestBody = config.body.payload as string;
         break;
       // Note: 'form-data' is disabled in frontend, not supported here
       case 'x-www-form-urlencoded': {
-        headers.set('Content-Type', 'application/x-www-form-urlencoded');
+        if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/x-www-form-urlencoded');
         const params = new URLSearchParams();
         for (const [k, v] of Object.entries(config.body.payload as Record<string, string>)) {
           params.append(k, v);
@@ -84,9 +115,15 @@ export async function executeHttpRequest(config: {
 
   const start = Date.now();
   const response = await fetch(url.toString(), {
-    method: config.method,
+    method,
     headers,
     body: requestBody,
+    // Forbid redirects: the internal-host guard only validates the initial URL,
+    // so following a redirect could reach an internal host the guard rejected
+    // (e.g. an external URL returning 302 → http://10.0.0.5). `error` makes a
+    // redirect response throw, which maps to the generic upstream error.
+    redirect: 'error',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   const elapsed = Date.now() - start;
 
@@ -155,6 +192,64 @@ export async function executeHttpRequest(config: {
     encoding,
     mimeType,
   };
+}
+
+/** Whether an IPv4 dotted-quad string is in a loopback/private/link-local range. */
+function isPrivateIPv4(h: string): boolean {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return false;
+  const o = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+  if (o.some((n) => n > 255)) return false;
+  const [a, b] = o;
+  if (a === 0) return true; // 0.0.0.0/8 "this host"
+  if (a === 127) return true; // loopback
+  if (a === 10) return true; // private
+  if (a === 172 && b >= 16 && b <= 31) return true; // private
+  if (a === 192 && b === 168) return true; // private
+  if (a === 169 && b === 254) return true; // link-local (incl. 169.254.169.254 metadata)
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT 100.64/10
+  return false;
+}
+
+/**
+ * Whether a URL hostname refers to an internal target: localhost/loopback, the
+ * unspecified address, private and link-local IPv4 ranges, IPv6 loopback,
+ * link-local (fe80::/10) and unique-local (fc00::/7), and IPv4-mapped IPv6 forms
+ * of any of the above. Used to block such targets outside local dev.
+ * Best-effort: validates the literal hostname only (no DNS resolution / redirect
+ * re-checking) — see the call site.
+ */
+function isInternalHost(hostname: string): boolean {
+  let h = hostname.toLowerCase();
+  // URL.hostname keeps brackets around IPv6 literals (e.g. "[::1]"); strip them.
+  if (h.startsWith('[') && h.endsWith(']')) h = h.slice(1, -1);
+  // Strip a trailing dot (fully-qualified form): "localhost." resolves to
+  // localhost but would otherwise dodge the string checks below.
+  if (h.endsWith('.')) h = h.slice(0, -1);
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+
+  if (h.includes(':')) {
+    // IPv6 literal.
+    if (h === '::1' || h === '::') return true;
+    if (/^fe[89ab][0-9a-f]:/.test(h)) return true; // link-local fe80::/10
+    if (/^f[cd][0-9a-f]{2}:/.test(h)) return true; // unique-local fc00::/7
+    if (h.startsWith('::ffff:')) {
+      const mapped = h.slice('::ffff:'.length);
+      if (isPrivateIPv4(mapped)) return true; // dotted form ::ffff:127.0.0.1
+      // hex form ::ffff:7f00:1 → reconstruct the IPv4 and re-check.
+      const hm = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(mapped);
+      if (hm) {
+        const hi = parseInt(hm[1], 16);
+        const lo = parseInt(hm[2], 16);
+        const ipv4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+        if (isPrivateIPv4(ipv4)) return true;
+      }
+    }
+    return false;
+  }
+
+  // IPv4 dotted-quad (domains fall through to false).
+  return isPrivateIPv4(h);
 }
 
 /**

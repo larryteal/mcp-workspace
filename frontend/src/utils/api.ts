@@ -29,7 +29,18 @@ export async function testApi(workspaceId: string, tool: Tool): Promise<ApiRespo
       body: proxyResponse.body,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Proxy test failed';
+    // Prefer the backend's reason: validation 400s carry `{ error }`, and the
+    // 502 execution path (incl. the localhost-guard rejection) carries it in
+    // `statusText`. Fall back to the generic axios message.
+    let errorMessage = error instanceof Error ? error.message : 'Proxy test failed';
+    if (axios.isAxiosError(error) && error.response?.data) {
+      const data = error.response.data as { statusText?: unknown; error?: unknown };
+      if (typeof data.statusText === 'string' && data.statusText) {
+        errorMessage = data.statusText;
+      } else if (typeof data.error === 'string' && data.error) {
+        errorMessage = data.error;
+      }
+    }
     return {
       status: 0,
       statusText: errorMessage,

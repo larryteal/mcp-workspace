@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpHandler } from 'agents/mcp';
 import { z } from 'zod';
 import type { Env } from '../env';
+import { isDevEnvironment } from '../env';
 import { substitutePayload } from '../utils/template';
 import { executeHttpRequest, type ExecuteResult } from '../utils/httpExecutor';
 import { compileSchema } from '../utils/schema';
@@ -40,12 +41,18 @@ interface MCPService {
   tools: Tool[];
 }
 
-/** Convert KeyValueItem[] to Record<string, string> (only enabled items with non-empty keys) */
-function kvToRecord(items: KeyValueItem[]): Record<string, string> | null {
+/**
+ * Convert KeyValueItem[] to Record<string, string> (only enabled items with
+ * non-empty keys). Defensive against malformed stored data: tolerates a missing/
+ * non-array field and null/ill-typed rows (would otherwise throw at call time).
+ */
+function kvToRecord(items: KeyValueItem[] | undefined | null): Record<string, string> | null {
   const result: Record<string, string> = {};
-  for (const item of items) {
-    if (item.enabled && item.key.trim()) {
-      result[item.key] = item.value;
+  if (Array.isArray(items)) {
+    for (const item of items) {
+      if (item && item.enabled && typeof item.key === 'string' && item.key.trim()) {
+        result[item.key] = typeof item.value === 'string' ? item.value : '';
+      }
     }
   }
   return Object.keys(result).length > 0 ? result : null;
@@ -75,12 +82,14 @@ async function getWorkspaceDataByHash(db: D1Database, widHash: string): Promise<
  * Build an McpServer for a specific workspace service.
  * @param widHash - MD5 hash of workspace ID (used in MCP URLs for security)
  * @param clientHeaders - Headers from MCP client request, will be merged with tool config headers (client headers take priority)
+ * @param allowInternalHosts - Whether tool calls may target internal hosts (localhost/private ranges); local dev only
  */
 async function buildMcpServer(
   db: D1Database,
   widHash: string,
   serviceId: string,
   clientHeaders: Record<string, string>,
+  allowInternalHosts: boolean,
 ): Promise<McpServer | null> {
   const services = await getWorkspaceDataByHash(db, widHash);
   // Guard against null/non-object array elements (legacy/hand-written data):
@@ -129,40 +138,46 @@ async function buildMcpServer(
         inputSchema,
         outputSchema,
       }, async (first) => {
-        // Merge headers: tool config headers first, then client headers override
-        const toolHeaders = kvToRecord(tool.headers) ?? {};
-        const mergedHeaders = { ...toolHeaders, ...clientHeaders };
-
-        // Build body payload
-        let bodyPayload: string | Record<string, string> | null = null;
-        if (tool.bodyType === 'raw-json' && tool.bodyContent) {
-          bodyPayload = tool.bodyContent;
-        } else if (tool.bodyType === 'x-www-form-urlencoded') {
-          bodyPayload = kvToRecord(tool.bodyUrlEncoded);
-        }
-
-        const rawConfig = {
-          url: tool.url,
-          params: kvToRecord(tool.params),
-          headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : null,
-          cookies: kvToRecord(tool.cookies),
-          body: {
-            type: tool.bodyType,
-            payload: bodyPayload,
-          },
-        };
-
-        // The SDK passes (args, extra) when an inputSchema is registered, but
-        // (extra) alone when it isn't. A tool with no inputSchema takes no
-        // arguments, so use an empty map — never treat `extra` as arguments
-        // (it would leak fields like sessionId into {{var}} substitution).
-        const values = (hasInputSchema ? first : {}) as Record<string, unknown>;
-        const resolved = substitutePayload(rawConfig, values);
-
         try {
+          // Build the request inside the try: assembling from stored JSON
+          // (kvToRecord, substitution, etc.) can throw on malformed/legacy data,
+          // and that must map to the generic error below — not leak a raw JS
+          // exception to the LLM via the SDK's error wrapper.
+
+          // Merge headers: tool config headers first, then client headers override
+          const toolHeaders = kvToRecord(tool.headers) ?? {};
+          const mergedHeaders = { ...toolHeaders, ...clientHeaders };
+
+          // Build body payload
+          let bodyPayload: string | Record<string, string> | null = null;
+          if (tool.bodyType === 'raw-json' && tool.bodyContent) {
+            bodyPayload = tool.bodyContent;
+          } else if (tool.bodyType === 'x-www-form-urlencoded') {
+            bodyPayload = kvToRecord(tool.bodyUrlEncoded);
+          }
+
+          const rawConfig = {
+            url: tool.url,
+            params: kvToRecord(tool.params),
+            headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : null,
+            cookies: kvToRecord(tool.cookies),
+            body: {
+              type: tool.bodyType,
+              payload: bodyPayload,
+            },
+          };
+
+          // The SDK passes (args, extra) when an inputSchema is registered, but
+          // (extra) alone when it isn't. A tool with no inputSchema takes no
+          // arguments, so use an empty map — never treat `extra` as arguments
+          // (it would leak fields like sessionId into {{var}} substitution).
+          const values = (hasInputSchema ? first : {}) as Record<string, unknown>;
+          const resolved = substitutePayload(rawConfig, values);
+
           const result = await executeHttpRequest({
             method: tool.method,
             ...resolved,
+            allowInternalHosts,
           });
           return toToolResult(result, serviceId, name, hasOutputSchema);
         } catch (err) {
@@ -310,7 +325,8 @@ mcp.all('/:widHash/mcp/:serviceId', async (c) => {
     }
   });
 
-  const server = await buildMcpServer(c.env.DB, widHash, serviceId, clientHeaders);
+  const server = await buildMcpServer(c.env.DB, widHash, serviceId, clientHeaders, isDevEnvironment(c.env));
+  // (isDevEnvironment → allowInternalHosts: internal targets only reachable in dev)
   if (!server) {
     // Report a JSON-RPC top-level error over HTTP 200. JSON-RPC-over-HTTP
     // signals application/protocol errors in the body with a 2xx status; a

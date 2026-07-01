@@ -9,6 +9,23 @@
   "dev": {
     "port": 2300
   },
+  // Bound per-request CPU time to 100ms. Backstops CPU-exhaustion (e.g. a
+  // catastrophic-backtracking `pattern` in a user-supplied JSON Schema that the
+  // SDK runs against tools/call arguments): the request is killed at 100ms CPU
+  // instead of burning the account's budget. Normal request CPU is well under
+  // this (network waits don't count as CPU). Repeated per-env below so `--env`
+  // deploys also get it.
+  "limits": {
+    "cpu_ms": 100
+  },
+  // Top-level default env — used by a bare `wrangler deploy` (no --env), so it
+  // MUST be safe: "production" makes isDevEnvironment() false → the internal-host
+  // SSRF guard is ON. Local dev re-enables localhost via `.dev.vars`
+  // (ENVIRONMENT=development), which only `wrangler dev` loads and is never
+  // deployed. `--env staging`/`--env production` set their own ENVIRONMENT below.
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
   // Default/Local DB configuration
   "d1_databases": [
     {
@@ -21,6 +38,9 @@
   "env": {
     "staging": {
       "name": "mcp-workspace-backend-staging",
+      "limits": {
+        "cpu_ms": 100
+      },
       "d1_databases": [
         {
           "binding": "DB",
@@ -34,6 +54,9 @@
     },
     "production": {
       "name": "mcp-workspace-backend-production",
+      "limits": {
+        "cpu_ms": 100
+      },
       "d1_databases": [
         {
           "binding": "DB",

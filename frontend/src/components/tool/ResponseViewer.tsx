@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { SubTabs } from '@/components/common';
 import { KeyValueTable } from './KeyValueTable';
@@ -18,10 +18,26 @@ const responseTabs = [
 
 type FormatType = 'pretty' | 'raw' | 'preview';
 
+// Above this many lines, the per-line (line-numbered) renderer would create
+// hundreds of thousands of DOM nodes and freeze the tab — fall back to plain text.
+const PRETTY_LINE_LIMIT = 5000;
+
+function formatCode(code: string): string {
+  try {
+    return JSON.stringify(JSON.parse(code), null, 2);
+  } catch {
+    return code;
+  }
+}
+
 export function ResponseViewer({ response, loading }: ResponseViewerProps) {
   const [activeTab, setActiveTab] = useState('body');
   const [format, setFormat] = useState<FormatType>('pretty');
   const [copied, setCopied] = useState(false);
+
+  // Format once per body (not per render) — JSON.parse+stringify on a multi-MB
+  // body is expensive.
+  const prettyBody = useMemo(() => (response ? formatCode(response.body) : ''), [response]);
 
   const handleCopy = async () => {
     if (response?.body) {
@@ -57,17 +73,20 @@ export function ResponseViewer({ response, loading }: ResponseViewerProps) {
     })
   );
 
-  const formatCode = (code: string) => {
-    try {
-      const parsed = JSON.parse(code);
-      return JSON.stringify(parsed, null, 2);
-    } catch {
-      return code;
-    }
-  };
-
   const renderCodeWithLineNumbers = (code: string) => {
     const lines = code.split('\n');
+    if (lines.length > PRETTY_LINE_LIMIT) {
+      // Too large for per-line DOM rendering — show as plain text to keep the UI
+      // responsive. Raw/Copy still give the full body.
+      return (
+        <>
+          <div style={{ color: 'var(--text-secondary)', fontSize: 12, padding: '4px 0' }}>
+            Large response ({lines.length.toLocaleString()} lines) — line numbers disabled; use Raw or Copy for the full body.
+          </div>
+          <pre className={styles.rawContent}>{code}</pre>
+        </>
+      );
+    }
     return (
       <div className={styles.codeLines}>
         {lines.map((line, i) => (
@@ -123,7 +142,7 @@ export function ResponseViewer({ response, loading }: ResponseViewerProps) {
 
             {/* Response body */}
             <div className={styles.responseBody}>
-              {format === 'pretty' && renderCodeWithLineNumbers(formatCode(response.body))}
+              {format === 'pretty' && renderCodeWithLineNumbers(prettyBody)}
               {format === 'raw' && (
                 <pre className={styles.rawContent}>{response.body}</pre>
               )}

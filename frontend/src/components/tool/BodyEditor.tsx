@@ -10,6 +10,8 @@ interface BodyEditorProps {
   onBodyContentChange: (content: string) => void;
   onBodyFormDataChange: (formData: KeyValueItem[]) => void;
   onBodyUrlEncodedChange: (urlEncoded: KeyValueItem[]) => void;
+  /** Live validation error for the raw-json body (e.g. length limit). */
+  error?: string;
 }
 
 const bodyTypeOptions: { value: BodyType; label: string; disabled?: boolean }[] = [
@@ -26,6 +28,7 @@ export function BodyEditor({
   onBodyContentChange,
   onBodyFormDataChange,
   onBodyUrlEncodedChange,
+  error,
 }: BodyEditorProps) {
   return (
     <div className={styles.container}>
@@ -75,6 +78,11 @@ export function BodyEditor({
               ].join('\n')}
               spellCheck={false}
             />
+            {error && (
+              <span style={{ color: 'var(--error)', fontSize: 12, display: 'block', marginTop: 4 }}>
+                {error}
+              </span>
+            )}
           </div>
         )}
 

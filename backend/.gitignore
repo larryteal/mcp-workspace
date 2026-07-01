@@ -1,2 +1,6 @@
 # Wrangler local state (dev D1, cache, etc.)
 .wrangler/
+
+# Local dev vars (loaded only by `wrangler dev`, never deployed). Holds the
+# dev-only ENVIRONMENT=development that re-enables localhost targets locally.
+.dev.vars

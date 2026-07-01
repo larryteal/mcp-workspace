@@ -9,8 +9,10 @@ const generateUUID = () => crypto.randomUUID();
 import { useWorkspace } from '@/context/WorkspaceContext';
 import { alertDialog } from '@/components/common';
 import { validateSchemaString } from '@/utils/schema';
+import { validateName, validateText, validateTool, LIMITS } from '@/utils/validate';
 
-const generateId = () => Math.random().toString(36).substring(2, 9);
+// Collision-free id for KeyValueItem rows (used as React keys + edit match key).
+const generateId = () => crypto.randomUUID();
 
 interface MCPContextType {
   services: MCPService[];
@@ -67,6 +69,13 @@ export function MCPProvider({ children }: { children: ReactNode }) {
   // Use refs for callbacks to avoid async state timing issues
   const onServicesChangeRef = useRef<((services: MCPService[]) => void) | undefined>(undefined);
   const onServerSnapshotLoadedRef = useRef<((services: MCPService[]) => void) | undefined>(undefined);
+  // Warn at most once when local persistence fails (e.g. quota/private mode).
+  const localWriteWarnedRef = useRef(false);
+  // True when the initial server load failed. While set, we must NOT persist the
+  // (empty) in-memory state to localStorage — doing so would make hasLocalData()
+  // true and cause the next reload to skip the server fetch, masking the real
+  // server data (and letting Save All overwrite it). Cleared on any successful load/sync.
+  const loadFailedRef = useRef(false);
 
   // Local-first data loading: check localStorage first, then server
   useEffect(() => {
@@ -81,6 +90,14 @@ export function MCPProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Switching to a different, not-yet-loaded workspace: clear the previous
+    // workspace's in-memory data so it can't be persisted under the new key
+    // (see the persistence effect's guard) or shown while the new one loads.
+    if (loadedWorkspaceRef.current !== null) {
+      setServices([]);
+      setDataLoaded(false);
+    }
+
     // Check if local data exists for this workspace
     if (storageService.hasLocalData(workspaceId)) {
       // Load from localStorage, skip server fetch
@@ -93,6 +110,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
       serverSnapshotRef.current = safeSnapshot;
       onServerSnapshotLoadedRef.current?.(safeSnapshot);
       loadedWorkspaceRef.current = workspaceId;
+      loadFailedRef.current = false;
       setIsLoading(false);
       setDataLoaded(true);
       return;
@@ -121,6 +139,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
         // Notify DirtyContext of server snapshot (if callback is set)
         onServerSnapshotLoadedRef.current?.(safeServices);
         loadedWorkspaceRef.current = workspaceId;
+        loadFailedRef.current = false;
         setIsLoading(false);
         setDataLoaded(true);
       } catch (error: unknown) {
@@ -132,11 +151,21 @@ export function MCPProvider({ children }: { children: ReactNode }) {
         if (isAbortError) return;
 
         console.error('Failed to fetch services from server:', error);
-        // Use empty state as fallback, mark as server snapshot
+        // Load FAILED — show empty but mark it so we never persist this empty
+        // state (which would poison local-first and mask/overwrite server data).
+        // loadedWorkspaceRef is still set so syncFromServer can retry in place.
         serverSnapshotRef.current = [];
         loadedWorkspaceRef.current = workspaceId;
+        loadFailedRef.current = true;
         setIsLoading(false);
         setDataLoaded(true);
+        if (!isCancelled) {
+          void alertDialog({
+            title: 'Failed to load from server',
+            message:
+              'Could not load this workspace from the server. Your saved data is safe on the server — it is NOT shown here. Use "Sync" to retry before making changes; saving now could overwrite the server copy.',
+          });
+        }
       }
     };
 
@@ -152,7 +181,24 @@ export function MCPProvider({ children }: { children: ReactNode }) {
   // Save to localStorage whenever services change (only after initial load)
   useEffect(() => {
     if (!workspaceId || !dataLoaded) return;
-    storageService.saveServices(workspaceId, services);
+    // Only persist for the workspace that actually finished loading — guards the
+    // brief window during a workspace switch where `services` still holds the
+    // previous workspace's data (otherwise it would be written under the new key).
+    if (loadedWorkspaceRef.current !== workspaceId) return;
+    // Never persist while the initial load is in a failed state — see loadFailedRef.
+    if (loadFailedRef.current) return;
+    const ok = storageService.saveServices(workspaceId, services);
+    if (!ok && !localWriteWarnedRef.current) {
+      // Don't silently drop the local copy: tell the user once that local
+      // persistence failed so they know to Save to the server (a refresh would
+      // otherwise re-fetch the server copy and lose unsaved edits).
+      localWriteWarnedRef.current = true;
+      void alertDialog({
+        title: 'Local save failed',
+        message:
+          'Could not save changes to local storage (it may be full or disabled). Your edits are kept in memory for now — use "Save All" to persist them to the server before reloading.',
+      });
+    }
     // Notify DirtyContext of changes
     onServicesChangeRef.current?.(services);
   }, [services, workspaceId, dataLoaded]);
@@ -200,7 +246,8 @@ export function MCPProvider({ children }: { children: ReactNode }) {
     const id = generateUUID();
     const newService: MCPService = {
       id,
-      name: 'New MCP Service',
+      // Default must satisfy the name rule (letters/digits/underscore, ≤32).
+      name: 'NewMCPService',
       version: '1.0.0',
       description: '',
       expanded: true,
@@ -298,29 +345,52 @@ export function MCPProvider({ children }: { children: ReactNode }) {
       }
       mcpIds.add(service.id);
 
+      const svcLabel = service.name || service.id;
+
+      // Service-level field rules (mirror backend utils/validate.ts).
+      const svcNameErr = validateName(service.name, `MCP '${svcLabel}' name`);
+      if (svcNameErr) return svcNameErr;
+      const svcVersionErr = validateText(service.version, `MCP '${svcLabel}' version`);
+      if (svcVersionErr) return svcVersionErr;
+      const svcDescErr = validateText(service.description, `MCP '${svcLabel}' description`);
+      if (svcDescErr) return svcDescErr;
+
       const toolIds = new Set<string>();
       const toolNameKeys = new Set<string>();
       for (const tool of service.tools) {
         if (toolIds.has(tool.id)) {
-          return `Tool ID '${tool.id}' already exists in MCP '${service.name}'`;
+          return `Tool ID '${tool.id}' already exists in MCP '${svcLabel}'`;
         }
         toolIds.add(tool.id);
+
+        const toolLabel = tool.name || tool.id;
+        const prefix = `Tool '${toolLabel}' in MCP '${svcLabel}'`;
+
+        // Tool field rules (name, url, method, bodyType, text, KV) — shared with the Test action.
+        const toolErr = validateTool(tool, prefix);
+        if (toolErr) return toolErr;
 
         // MCP identifies tools by name; the runtime dedups on (name || id) and
         // silently drops repeats, so reject duplicates here with a clear message.
         const nameKey = tool.name || tool.id;
         if (toolNameKeys.has(nameKey)) {
-          return `Tool name '${tool.name}' is duplicated in MCP '${service.name}' (tool names must be unique)`;
+          return `Tool name '${tool.name}' is duplicated in MCP '${svcLabel}' (tool names must be unique)`;
         }
         toolNameKeys.add(nameKey);
 
+        // Length (text class) then JSON-Schema validity — matches the backend,
+        // which length-checks schemas before the Zod conversion.
+        const inputLenErr = validateText(tool.inputSchema, `${prefix}: Input Schema`, LIMITS.SCHEMA_MAX);
+        if (inputLenErr) return inputLenErr;
         const inputErr = validateSchemaString(tool.inputSchema ?? '');
         if (inputErr) {
-          return `Tool '${tool.name}' in MCP '${service.name}': Input Schema — ${inputErr}`;
+          return `${prefix}: Input Schema — ${inputErr}`;
         }
+        const outputLenErr = validateText(tool.outputSchema, `${prefix}: Output Schema`, LIMITS.SCHEMA_MAX);
+        if (outputLenErr) return outputLenErr;
         const outputErr = validateSchemaString(tool.outputSchema ?? '');
         if (outputErr) {
-          return `Tool '${tool.name}' in MCP '${service.name}': Output Schema — ${outputErr}`;
+          return `${prefix}: Output Schema — ${outputErr}`;
         }
       }
     }
@@ -328,6 +398,18 @@ export function MCPProvider({ children }: { children: ReactNode }) {
   }, [services]);
 
   const saveAllToServer = useCallback(async (): Promise<boolean> => {
+    // Hard gate: if the initial server load failed, the in-memory state is NOT
+    // authoritative (server data was never loaded). Saving now would full-replace
+    // and destroy the server copy — require a successful Sync first.
+    if (loadFailedRef.current) {
+      await alertDialog({
+        title: 'Cannot save yet',
+        message:
+          'This workspace failed to load from the server, so what you see may be incomplete. Click "Sync" to load the latest server data before saving — saving now could overwrite it.',
+      });
+      return false;
+    }
+
     const error = validateAllBeforeSave();
     if (error) {
       await alertDialog({ title: 'Validation Error', message: error });
@@ -354,9 +436,14 @@ export function MCPProvider({ children }: { children: ReactNode }) {
     setIsSyncing(true);
     try {
       const serverServices = await fetchServicesFromServer(workspaceId);
+      // If the user switched workspaces while this sync was in flight, discard the
+      // result — applying it would write the synced workspace's data into the
+      // now-active workspace's state and localStorage (cross-workspace bleed).
+      if (loadedWorkspaceRef.current !== workspaceId) return;
       // fetchServicesFromServer already ensures array, but double-check for safety
       const safeServices = Array.isArray(serverServices) ? serverServices : [];
       setServices(safeServices);
+      loadFailedRef.current = false; // a successful sync recovers from a failed load
       storageService.saveServices(workspaceId, safeServices);
       storageService.saveServerSnapshot(workspaceId, safeServices);
       serverSnapshotRef.current = safeServices;

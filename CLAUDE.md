@@ -111,13 +111,36 @@ MCP URLs use MD5 hash of workspace ID instead of the raw UUID for security purpo
 - **Service/Tool `name`**: User-editable display name, used in MCP protocol (`tools/list` returns `name` as tool identifier)
 - **MCP Config display name**: Derived from service `name` via slugify (lowercase, hyphen-separated)
 
+### Field Validation (save-time)
+
+On save (`PUT .../batch`) the backend validates every field; the frontend mirrors the same rules (`backend/src/utils/validate.ts` ⇄ `frontend/src/utils/validate.ts` — keep them in sync) for live feedback and a pre-save check in `validateAllBeforeSave`. The backend is authoritative. Classes:
+
+- **URL** (tool `url`): non-empty, ≤256 chars, must be an `http(s)` URL. `{{var}}` placeholders are allowed in the path/host/query (substituted with a benign token before parsing), but the scheme+host must be literal — a fully-templated authority like `{{base}}/x` is rejected (URL values are percent-encoded at call time, so a var can't form the authority).
+- **Name** (service `name`, tool `name`): non-empty, ≤32 chars, only `[A-Za-z0-9_]` (MCP identifier charset). New-service default name is `NewMCPService` so the default itself is valid.
+- **KV key** (header/param/cookie names): non-empty, ≤64 chars, `[A-Za-z0-9_.-]` (HTTP-friendly — allows hyphens/dots, e.g. `Content-Type`). KV rows with an empty key are placeholder rows ignored at runtime, so their key is not required.
+- **Text** (service `version`/`description`, tool `description`, KV `value`/`description`): optional, ≤2048 chars, any characters.
+- **Schema/body** (tool `inputSchema`/`outputSchema`/`bodyContent`): optional, ≤4096 chars (`SCHEMA_MAX` — larger than plain text since non-trivial JSON Schemas/bodies exceed 2048). `inputSchema`/`outputSchema` are additionally validated as JSON Schema (see below).
+- **Enum**: tool `method` ∈ {GET, POST, PUT, DELETE, PATCH} (required); tool `bodyType` ∈ {none, raw-json, form-data, x-www-form-urlencoded, binary} (optional, empty → none). Rejects crafted/unknown values.
+
+Limits live in `LIMITS` (`URL_MAX`/`NAME_MAX`/`TEXT_MAX`/`KEY_MAX`); inputs also set `maxLength` for these. Service-id and tool-name (within a service) uniqueness are enforced here too. The frontend's shared `validateTool()` runs the non-schema checks both at save and before the **Test** action; the `POST .../proxy/test` endpoint independently re-validates url/method/bodyType server-side (it executes a request, so a direct call must not bypass validation).
+
 ### Template Variables
 
-Tool configs can reference `{{varName}}` in url, params, headers, cookies, and body. At MCP `tools/call` time, these are substituted with values from the call's `arguments`. On save, variables should match `inputSchema.properties`.
+Tool configs can reference `{{varName}}` in url, params, headers, cookies, and body. At MCP `tools/call` time, these are substituted with values from the call's `arguments`. On save, variables should match `inputSchema.properties`. The placeholder name is any run of non-brace characters (whitespace trimmed), so names that aren't bare `\w` are supported — e.g. `{{user-id}}`, `{{user.id}}`, `{{ name }}`.
+
+**Injection-safe substitution**: values substituted into the **URL** are percent-encoded (`encodeURIComponent`) and values substituted into **cookies** are cookie-safe-encoded (strip CR/LF, encode `;`/`,` only — base64/JWT chars `+` `/` `=` are preserved) so an untrusted caller arg can't inject extra query params / path segments or smuggle a second cookie. (Config `params` are encoded by `URLSearchParams.set`; header values are CRLF-rejected by the runtime `Headers`.) Consequence: a URL's scheme+host must be literal — a value used as the whole authority would be percent-encoded. Note: raw-json **body** substitution is not JSON-escaped, so a tool exposing `{{var}}` inside a JSON string still trusts the caller's value there.
 
 ### URL and Query Params Handling
 
 The backend `httpExecutor` handles URLs that may already contain query params. URL can include query params directly, and Query Params config can also specify params separately. Config params override URL-embedded params with the same key. Invalid URLs throw a clear error message.
+
+**Body / Content-Type**: GET/HEAD requests never send a body (fetch rejects one) — any configured body is dropped for those methods. For `raw-json` and `x-www-form-urlencoded`, the default Content-Type is only applied when the tool config hasn't set its own Content-Type header (an explicit header is preserved).
+
+**Timeout / redirects**: upstream `fetch` is bound by a 30s `AbortSignal.timeout` (slow/hanging upstream aborts → generic error). Redirects are forbidden (`redirect: 'error'`) — a 3xx response throws — so the internal-host guard (initial URL only) can't be bypassed by an external URL redirecting to an internal host.
+
+**DoS limits**: per-request CPU is capped at 100ms (`limits.cpu_ms` in `wrangler.jsonc`, repeated per env) — backstops CPU exhaustion such as a catastrophic-backtracking `pattern` in a user-supplied JSON Schema (the SDK runs `inputSchema`/`outputSchema` regexes against `tools/call` args). The JSON API (`/api/*` — workspace save + `proxy/test`) has a 1MB request-body cap (`hono/body-limit`, rejected pre-parse). Save payload is additionally capped at 1MB post-parse; response bodies stream with a 10MB cap.
+
+**Internal-host guard**: Outside local dev, requests to internal targets are rejected (`isInternalHost`): localhost/`*.localhost`, IPv4 loopback/private/link-local (`0/8`, `127/8`, `10/8`, `172.16-31`, `192.168/16`, `169.254/16` incl. metadata, `100.64/10`), IPv6 `::1`/`::`/`fe80::/10`/`fc00::/7`, and IPv4-mapped IPv6 forms of those. Gated by `allowInternalHosts`, derived from `isDevEnvironment(env)` (`env.ENVIRONMENT === 'development'`). The deployed default is **safe**: top-level `vars.ENVIRONMENT = "production"` in `wrangler.jsonc`, so a bare `wrangler deploy` (no `--env`) denies internal hosts. Local dev re-enables localhost via `backend/.dev.vars` (`ENVIRONMENT=development`), which **only `wrangler dev` loads and is never deployed** (gitignored — each dev creates their own; without it, `wrangler dev` runs as production, the safe failure mode). `--env staging`/`--env production` set their own `ENVIRONMENT`. Redirects are forbidden (see above), so they can't bypass the guard. **Residual limitation**: only the literal hostname is checked, so a DNS name that resolves to an internal IP is not caught (no resolution is performed).
 
 ### MCP Client Headers
 

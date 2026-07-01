@@ -6,6 +6,7 @@ import { useMCP } from '@/context/MCPContext';
 import { useTabs } from '@/context/TabContext';
 import { useApiTest } from '@/hooks/useApiTest';
 import { alertDialog } from '@/components/common';
+import { validateTool } from '@/utils/validate';
 import type { Tool } from '@/types';
 import styles from './ToolConfig.module.css';
 
@@ -40,6 +41,12 @@ export function ToolConfig({ tool, mcpId }: ToolConfigProps) {
     const error = validateBeforeSave(mcpId);
     if (error) {
       await alertDialog({ title: 'Validation Error', message: error });
+      return;
+    }
+    // Field-level validation (same rules as save) before hitting the proxy.
+    const fieldError = validateTool(tool, 'Tool');
+    if (fieldError) {
+      await alertDialog({ title: 'Validation Error', message: fieldError });
       return;
     }
     runTest(tool);

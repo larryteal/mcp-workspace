@@ -3,6 +3,7 @@ import { Card, Input, TextArea } from '@/components/common';
 import { ConfigCodeBlock } from './ConfigCodeBlock';
 import { useMCP } from '@/context/MCPContext';
 import { useDirty } from '@/context/DirtyContext';
+import { validateName, validateText, LIMITS } from '@/utils/validate';
 import type { MCPService } from '@/types';
 import styles from './MCPOverview.module.css';
 
@@ -15,6 +16,11 @@ export function MCPOverview({ service }: MCPOverviewProps) {
   const { isOverviewDirty } = useDirty();
 
   const isDirty = isOverviewDirty(service.id);
+
+  // Live field validation (mirrors backend rules).
+  const nameError = validateName(service.name, 'Name');
+  const versionError = validateText(service.version, 'Version');
+  const descriptionError = validateText(service.description, 'Description');
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateService(service.id, { name: e.target.value });
@@ -49,12 +55,16 @@ export function MCPOverview({ service }: MCPOverviewProps) {
                 value={service.name}
                 onChange={handleNameChange}
                 placeholder="Enter MCP service name"
+                error={nameError ?? undefined}
+                maxLength={LIMITS.NAME_MAX}
               />
               <Input
                 label="Version"
                 value={service.version}
                 onChange={handleVersionChange}
                 placeholder="1.0.0"
+                error={versionError ?? undefined}
+                maxLength={LIMITS.TEXT_MAX}
               />
             </div>
             <TextArea
@@ -63,6 +73,8 @@ export function MCPOverview({ service }: MCPOverviewProps) {
               onChange={handleDescriptionChange}
               placeholder="Describe what this MCP service does..."
               rows={3}
+              error={descriptionError ?? undefined}
+              maxLength={LIMITS.TEXT_MAX}
             />
           </div>
         </Card>

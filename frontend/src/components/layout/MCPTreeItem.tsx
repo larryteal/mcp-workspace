@@ -22,7 +22,7 @@ export function MCPTreeItem({ service }: MCPTreeItemProps) {
     deleteService,
     deleteTool
   } = useMCP();
-  const { openTab, closeTabsByMcpId } = useTabs();
+  const { openTab, closeTab, closeTabsByMcpId, findTab } = useTabs();
   const { isServiceDirty, isOverviewDirty, isToolDirty } = useDirty();
   const [isHovered, setIsHovered] = useState(false);
   const [hoveredToolId, setHoveredToolId] = useState<string | null>(null);
@@ -97,6 +97,10 @@ export function MCPTreeItem({ service }: MCPTreeItemProps) {
       danger: true,
     });
     if (confirmed) {
+      // Close the tool's tab first so we don't leave an orphaned tab pointing at
+      // a now-deleted tool (service deletion already does this via closeTabsByMcpId).
+      const tab = findTab(service.id, tool.id);
+      if (tab) closeTab(tab.id);
       deleteTool(service.id, tool.id);
     }
   };

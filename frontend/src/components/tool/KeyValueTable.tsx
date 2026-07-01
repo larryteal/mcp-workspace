@@ -2,6 +2,7 @@ import React from 'react';
 import { Checkbox } from 'antd';
 import { Plus, Trash2 } from 'lucide-react';
 import type { KeyValueItem } from '@/types';
+import { LIMITS } from '@/utils/validate';
 import styles from './KeyValueTable.module.css';
 
 interface KeyValueTableProps {
@@ -11,7 +12,7 @@ interface KeyValueTableProps {
   readOnly?: boolean;
 }
 
-const generateId = () => Math.random().toString(36).substring(2, 9);
+const generateId = () => crypto.randomUUID();
 
 export function KeyValueTable({
   items,
@@ -66,6 +67,7 @@ export function KeyValueTable({
                   value={item.key}
                   onChange={e => handleChange(item.id, 'key', e.target.value)}
                   placeholder="foo"
+                  maxLength={LIMITS.KEY_MAX}
                 />
               </td>
               <td className={styles.valueCol}>
@@ -75,6 +77,7 @@ export function KeyValueTable({
                   value={item.value}
                   onChange={e => handleChange(item.id, 'value', e.target.value)}
                   placeholder="bar | {{bar}}"
+                  maxLength={LIMITS.TEXT_MAX}
                 />
               </td>
               {showDescription && (
@@ -85,6 +88,7 @@ export function KeyValueTable({
                     value={item.description || ''}
                     onChange={e => handleChange(item.id, 'description', e.target.value)}
                     placeholder="Description"
+                    maxLength={LIMITS.TEXT_MAX}
                   />
                 </td>
               )}

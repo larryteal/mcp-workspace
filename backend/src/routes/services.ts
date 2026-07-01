@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../env';
 import { validateSchemaString } from '../utils/schema';
+import { validateName, validateText, validateTool, LIMITS } from '../utils/validate';
 import { md5 } from '../utils/md5';
 
 const services = new Hono<{ Bindings: Env }>();
@@ -32,19 +33,40 @@ services.get('/', async (c) => {
 });
 
 /**
- * Validate every tool's inputSchema/outputSchema in an untrusted payload.
- * inputSchema and outputSchema share the same rule (see validateSchemaString).
- * Defensive throughout: the payload shape itself is not trusted.
+ * Validate an untrusted save payload: field formats/lengths, tool-name
+ * uniqueness, and inputSchema/outputSchema. Defensive throughout — the payload
+ * shape itself is not trusted. Field rules live in utils/validate.ts and are
+ * mirrored on the frontend.
  *
- * @returns null when all schemas are valid (or absent); otherwise an error message.
+ * @returns null when the whole payload is valid; otherwise the first error.
  */
-function validatePayloadSchemas(servicesPayload: unknown[]): string | null {
+function validatePayload(servicesPayload: unknown[]): string | null {
+  const serviceIds = new Set<string>();
   for (let i = 0; i < servicesPayload.length; i++) {
     const svc = servicesPayload[i];
     if (typeof svc !== 'object' || svc === null) {
       return `services[${i}] must be an object`;
     }
-    const tools = (svc as { tools?: unknown }).tools;
+    const s = svc as { id?: unknown; name?: unknown; version?: unknown; description?: unknown; tools?: unknown };
+
+    // Duplicate service ids make all but the first silently unreachable at the
+    // MCP endpoint (services.find by id) — reject, matching the frontend check.
+    if (typeof s.id === 'string' && s.id) {
+      if (serviceIds.has(s.id)) {
+        return `services[${i}] duplicate service id '${s.id}'`;
+      }
+      serviceIds.add(s.id);
+    }
+
+    // Service-level fields.
+    const nameErr = validateName(s.name, `services[${i}].name`);
+    if (nameErr) return nameErr;
+    const versionErr = validateText(s.version, `services[${i}].version`);
+    if (versionErr) return versionErr;
+    const svcDescErr = validateText(s.description, `services[${i}].description`);
+    if (svcDescErr) return svcDescErr;
+
+    const tools = s.tools;
     if (tools === undefined || tools === null) continue; // a service with no tools is fine
     if (!Array.isArray(tools)) {
       return `services[${i}].tools must be an array`;
@@ -56,6 +78,12 @@ function validatePayloadSchemas(servicesPayload: unknown[]): string | null {
         return `services[${i}].tools[${j}] must be an object`;
       }
       const t = tool as { name?: unknown; id?: unknown; inputSchema?: unknown; outputSchema?: unknown };
+      const where = `services[${i}].tools[${j}]`;
+
+      // Non-schema fields (name, url, method, bodyType, text, KV) — shared with
+      // the frontend's validateTool so both ends apply the identical rule set.
+      const toolErr = validateTool(tool, where);
+      if (toolErr) return toolErr;
 
       // MCP identifies tools by name; the runtime dedups on (name || id) and
       // silently drops repeats, so reject duplicates on save (defensive: the
@@ -65,18 +93,21 @@ function validatePayloadSchemas(servicesPayload: unknown[]): string | null {
       const nameKey = rawName || rawId;
       if (nameKey) {
         if (toolNameKeys.has(nameKey)) {
-          return `services[${i}].tools[${j}] duplicate tool name '${rawName}' (tool names must be unique within a service)`;
+          return `${where} duplicate tool name '${rawName}' (tool names must be unique within a service)`;
         }
         toolNameKeys.add(nameKey);
       }
 
+      // inputSchema/outputSchema: length (SCHEMA_MAX) then JSON-Schema validity.
       for (const field of ['inputSchema', 'outputSchema'] as const) {
         const v = t[field];
         if (v === undefined || v === null) continue; // empty/absent schema is allowed
         if (typeof v !== 'string') {
-          return `services[${i}].tools[${j}].${field} must be a string`;
+          return `${where}.${field} must be a string`;
         }
-        const err = validateSchemaString(v, `services[${i}].tools[${j}].${field}`);
+        const lenErr = validateText(v, `${where}.${field}`, LIMITS.SCHEMA_MAX);
+        if (lenErr) return lenErr;
+        const err = validateSchemaString(v, `${where}.${field}`);
         if (err) return err;
       }
     }
@@ -105,9 +136,9 @@ services.put('/batch', async (c) => {
     return c.json({ error: 'Payload too large' }, 413);
   }
 
-  const schemaError = validatePayloadSchemas(payload);
-  if (schemaError) {
-    return c.json({ error: schemaError }, 400);
+  const validationError = validatePayload(payload);
+  if (validationError) {
+    return c.json({ error: validationError }, 400);
   }
 
   // Compute wid_hash server-side; never trust a client-supplied hash. This
