@@ -30,7 +30,9 @@ function kvToRecord(items: KeyValueItem[] | undefined | null): Record<string, st
   const result: Record<string, string> = {};
   if (Array.isArray(items)) {
     for (const item of items) {
-      if (item && item.enabled && typeof item.key === 'string' && item.key.trim()) {
+      // `enabled !== false` (default-on) matches the frontend normalize, so a KV
+      // row shown as active in the UI isn't silently dropped when `enabled` is absent.
+      if (item && item.enabled !== false && typeof item.key === 'string' && item.key.trim()) {
         result[item.key] = typeof item.value === 'string' ? item.value : '';
       }
     }

@@ -50,7 +50,10 @@ function kvToRecord(items: KeyValueItem[] | undefined | null): Record<string, st
   const result: Record<string, string> = {};
   if (Array.isArray(items)) {
     for (const item of items) {
-      if (item && item.enabled && typeof item.key === 'string' && item.key.trim()) {
+      // `enabled !== false` (default-on for absent/legacy data) matches the
+      // frontend's normalize, so a KV row shown as active in the UI is actually
+      // sent — rather than silently dropped when `enabled` is missing.
+      if (item && item.enabled !== false && typeof item.key === 'string' && item.key.trim()) {
         result[item.key] = typeof item.value === 'string' ? item.value : '';
       }
     }
@@ -344,9 +347,19 @@ mcp.all('/:widHash/mcp/:serviceId', async (c) => {
     } catch {
       // No/invalid JSON body (e.g. GET) — id stays null.
     }
-    // Mirror the CORS the found path sets via createMcpHandler, so a browser-based
-    // MCP client hitting a stale/deleted serviceId can actually read this crafted
-    // JSON-RPC error instead of getting an opaque CORS failure.
+    // Mirror the FULL CORS the found path sets via createMcpHandler, so a
+    // browser-based MCP client hitting a stale/deleted serviceId can actually read
+    // this crafted JSON-RPC error. A real client POSTs application/json, which
+    // triggers an OPTIONS preflight that also lands here — so Allow-Methods/Headers
+    // are required, not just Allow-Origin, or the preflight (and thus the POST) fails.
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, mcp-session-id, mcp-protocol-version',
+    };
+    if (c.req.method === 'OPTIONS') {
+      return c.body(null, 204, corsHeaders);
+    }
     return c.json(
       {
         jsonrpc: '2.0',
@@ -354,7 +367,7 @@ mcp.all('/:widHash/mcp/:serviceId', async (c) => {
         error: { code: -32602, message: `Service "${serviceId}" not found` },
       },
       200,
-      { 'Access-Control-Allow-Origin': '*' },
+      corsHeaders,
     );
   }
 

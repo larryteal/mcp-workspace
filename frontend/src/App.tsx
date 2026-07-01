@@ -220,11 +220,19 @@ function AppContent() {
         setSelectedMcpId(activeTab.mcpId);
         setSelectedToolId(activeTab.type === 'tool' ? activeTab.toolId || null : null);
 
-        // Sync navigation
-        if (activeTab.type === 'overview') {
-          navigate(`/workspace/${workspaceId}/mcp/${activeTab.mcpId}/overview`);
-        } else if (activeTab.type === 'tool' && activeTab.toolId) {
-          navigate(`/workspace/${workspaceId}/mcp/${activeTab.mcpId}/tool/${activeTab.toolId}`);
+        // Sync navigation — but only when the URL actually needs to change. This
+        // effect also re-runs when a tab's TITLE changes (e.g. typing in the Tool
+        // Name field mutates `tabs`); navigating to the already-current URL would
+        // push a duplicate history entry on every keystroke. (No `replace` here so
+        // genuine tab switches still add history for the back button.)
+        const targetPath =
+          activeTab.type === 'overview'
+            ? `/workspace/${workspaceId}/mcp/${activeTab.mcpId}/overview`
+            : activeTab.type === 'tool' && activeTab.toolId
+              ? `/workspace/${workspaceId}/mcp/${activeTab.mcpId}/tool/${activeTab.toolId}`
+              : null;
+        if (targetPath && targetPath !== location.pathname) {
+          navigate(targetPath);
         }
       }
     } else {

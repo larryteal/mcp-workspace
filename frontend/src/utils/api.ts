@@ -2,10 +2,6 @@ import axios from 'axios';
 import type { Tool, ApiResponse } from '@/types';
 import { proxyTestTool } from '@/services/storage';
 
-const api = axios.create({
-  timeout: 30000,
-});
-
 /**
  * Test API through backend proxy
  * Uses unified ToolRequestPayload format
@@ -52,5 +48,3 @@ export async function testApi(workspaceId: string, tool: Tool): Promise<ApiRespo
     };
   }
 }
-
-export default api;
