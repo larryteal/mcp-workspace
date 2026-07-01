@@ -146,12 +146,6 @@ export const storageService = {
       return false;
     }
   },
-
-  clearWorkspaceData(workspaceId: string): void {
-    const keys = getStorageKeys(workspaceId);
-    localStorage.removeItem(keys.SERVICES);
-    localStorage.removeItem(keys.SNAPSHOT);
-  },
 };
 
 /**

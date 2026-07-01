@@ -11,9 +11,6 @@ import { alertDialog } from '@/components/common';
 import { validateSchemaString } from '@/utils/schema';
 import { validateName, validateText, validateTool, LIMITS } from '@/utils/validate';
 
-// Collision-free id for KeyValueItem rows (used as React keys + edit match key).
-const generateId = () => crypto.randomUUID();
-
 interface MCPContextType {
   services: MCPService[];
   selectedMcpId: string | null;
@@ -265,13 +262,13 @@ export function MCPProvider({ children }: { children: ReactNode }) {
       description: '',
       method: 'GET',
       url: '',
-      params: [{ id: generateId(), enabled: true, key: '', value: '', description: '' }],
-      headers: [{ id: generateId(), enabled: true, key: '', value: '', description: '' }],
-      cookies: [{ id: generateId(), enabled: true, key: '', value: '', description: '' }],
+      params: [{ id: generateUUID(), enabled: true, key: '', value: '', description: '' }],
+      headers: [{ id: generateUUID(), enabled: true, key: '', value: '', description: '' }],
+      cookies: [{ id: generateUUID(), enabled: true, key: '', value: '', description: '' }],
       bodyType: 'none',
       bodyContent: '',
-      bodyFormData: [{ id: generateId(), enabled: true, key: '', value: '', description: '' }],
-      bodyUrlEncoded: [{ id: generateId(), enabled: true, key: '', value: '', description: '' }],
+      bodyFormData: [{ id: generateUUID(), enabled: true, key: '', value: '', description: '' }],
+      bodyUrlEncoded: [{ id: generateUUID(), enabled: true, key: '', value: '', description: '' }],
       inputSchema: '',
       outputSchema: '',
     };

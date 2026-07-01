@@ -8,9 +8,9 @@ import { confirmDialog, alertDialog } from '@/components/common';
 import styles from './MCPTree.module.css';
 
 export function MCPTree() {
-  const { services, addService, setSelectedMcpId, setSelectedToolId, saveAllToServer, syncFromServer, isSaving, isSyncing, validateAllBeforeSave } = useMCP();
+  const { services, addService, setSelectedMcpId, setSelectedToolId, saveAllToServer, syncFromServer, isSaving, isSyncing } = useMCP();
   const { openTab } = useTabs();
-  const { hasAnyDirty, markAllSaved } = useDirty();
+  const { hasAnyDirty } = useDirty();
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -30,12 +30,9 @@ export function MCPTree() {
   const handleSaveAll = async () => {
     setSaving(true);
     try {
-      const success = await saveAllToServer();
-      if (success) {
-        // Mark all as saved
-        markAllSaved(services);
-      }
-      // success === false means front-end validation failed; MCPContext already
+      await saveAllToServer();
+      // saveAllToServer already syncs the DirtyContext snapshot on success; a
+      // false return means front-end validation failed and MCPContext already
       // showed a specific dialog, so we don't show a duplicate generic one here.
     } catch (error) {
       console.error('Save all error:', error);

@@ -21,9 +21,7 @@ interface DirtyContextType {
   getDirtyToolIds: (mcpId: string) => string[];
   /** Update the current services state for comparison */
   updateCurrentState: (services: MCPService[]) => void;
-  /** Mark entire state as saved (sync server snapshot with current) */
-  markAllSaved: (services: MCPService[]) => void;
-  /** Reset server snapshot (e.g., after initial load from server) */
+  /** Reset server snapshot (e.g., after initial load from server, or after save) */
   setServerSnapshot: (services: MCPService[]) => void;
 }
 
@@ -209,10 +207,6 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
     return dirtyIds;
   }, [currentServicesMap, isToolDirty]);
 
-  const markAllSaved = useCallback((services: MCPService[]) => {
-    setServerSnapshotState(services);
-  }, []);
-
   return (
     <DirtyContext.Provider
       value={{
@@ -223,7 +217,6 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
         getDirtyMcpIds,
         getDirtyToolIds,
         updateCurrentState,
-        markAllSaved,
         setServerSnapshot,
       }}
     >
