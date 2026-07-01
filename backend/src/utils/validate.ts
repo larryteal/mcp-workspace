@@ -75,27 +75,36 @@ export function validateUrl(value: unknown, label: string): string | null {
   const trimmed = value.trim();
   if (trimmed === '') return `${label} cannot be empty`;
   if (value.length > LIMITS.URL_MAX) return `${label} must be at most ${LIMITS.URL_MAX} characters`;
-  // Resolve {{placeholders}} to a benign token so a templated path/host
-  // (e.g. https://{{host}}/x) still parses, then require an http(s) scheme.
-  // A fully-templated authority (e.g. "{{base}}/x") is intentionally rejected:
-  // at call time URL values are percent-encoded, so the scheme+host must be
-  // literal for the request to be well-formed.
+  // Resolve {{placeholders}} to a benign token so a templated path/query still
+  // parses; require an http(s) scheme. A fully-templated authority ("{{base}}/x")
+  // fails to parse here and is rejected.
   const probe = value.replace(VAR_RE, '1');
-  let parsed: URL;
+  let probeUrl: URL;
   try {
-    parsed = new URL(probe);
+    probeUrl = new URL(probe);
   } catch {
     return `${label} must be a valid URL`;
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+  if (probeUrl.protocol !== 'http:' && probeUrl.protocol !== 'https:') {
     return `${label} must be an http(s) URL`;
   }
-  // Reject a {{placeholder}} in the authority (userinfo/host/port): the host must
-  // be literal. Otherwise an untrusted caller arg could redirect the request (with
-  // the tool's configured secret headers) to a host of their choosing. Placeholders
-  // in the path/query are fine (and percent-encoded at call time).
-  const authority = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^/?#]*)/.exec(value);
-  if (authority && authority[1].includes('{{')) {
+  // The authority (scheme/userinfo/host/port) must be LITERAL — a {{placeholder}}
+  // there would let an untrusted caller arg redirect the request (with the tool's
+  // configured secret headers) to a host of its choosing. Detect with the SAME
+  // parser the runtime uses (new URL): a regex on the raw string is defeated by
+  // WHATWG leniency (leading/embedded whitespace, tab/CR/LF, backslash, single slash).
+  let rawUrl: URL | null = null;
+  try {
+    rawUrl = new URL(value);
+  } catch {
+    rawUrl = null; // raw only parses after substitution → placeholder in a structural spot (e.g. port)
+  }
+  if (!rawUrl) {
+    return `${label} host must be literal — {{placeholders}} are only allowed in the path/query`;
+  }
+  // A placeholder is literal in the host but percent-encoded (%7B%7B) in userinfo.
+  const authority = `${rawUrl.username} ${rawUrl.password} ${rawUrl.hostname}`;
+  if (authority.includes('{{') || /%7b/i.test(authority)) {
     return `${label} host must be literal — {{placeholders}} are only allowed in the path/query`;
   }
   return null;
