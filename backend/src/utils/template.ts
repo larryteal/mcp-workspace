@@ -76,6 +76,27 @@ function encodeCookieValue(v: string): string {
   return v.replace(/[\r\n]/g, '').replace(/;/g, '%3B').replace(/,/g, '%2C');
 }
 
+/**
+ * Substitute header values. Identity-encoded (header values are CRLF-guarded by
+ * the runtime Headers), EXCEPT a `Cookie` header, whose value is cookie-safe-
+ * encoded — otherwise a caller-controlled `{{var}}` in a `Cookie: k={{v}}` header
+ * could smuggle a second cookie (the same protection the dedicated cookies field
+ * gets via encodeCookieValue). Only the substituted value is encoded, so a literal
+ * `;` separating cookies in the template (e.g. `a={{x}}; b={{y}}`) is preserved.
+ */
+function substituteHeaders(
+  rec: Record<string, string> | null,
+  values: Record<string, unknown>,
+): Record<string, string> | null {
+  if (!rec) return null;
+  const result: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rec)) {
+    const encode = k.toLowerCase() === 'cookie' ? encodeCookieValue : (s: string) => s;
+    result[k] = substituteString(v, values, encode);
+  }
+  return result;
+}
+
 export function substitutePayload(
   payload: {
     url: string;
@@ -91,11 +112,12 @@ export function substitutePayload(
     // an untrusted caller value can't inject extra query params / path segments or
     // smuggle a second cookie. params go through URLSearchParams.set (encoded
     // there, so encoding here would double-encode); header values are CRLF-rejected
-    // by Headers. NOTE: a value used as the URL authority is percent-encoded too —
-    // the scheme+host must be literal in the URL.
+    // by Headers (and a `Cookie` header gets cookie-safe encoding, see
+    // substituteHeaders). NOTE: a value used as the URL authority is percent-encoded
+    // too — the scheme+host must be literal in the URL.
     url: substituteString(payload.url, values, encodeURIComponent),
     params: substituteRecord(payload.params, values),
-    headers: substituteRecord(payload.headers, values),
+    headers: substituteHeaders(payload.headers, values),
     cookies: substituteRecord(payload.cookies, values, encodeCookieValue),
     body: {
       type: payload.body.type,

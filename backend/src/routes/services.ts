@@ -72,6 +72,7 @@ function validatePayload(servicesPayload: unknown[]): string | null {
       return `services[${i}].tools must be an array`;
     }
     const toolNameKeys = new Set<string>();
+    const toolIds = new Set<string>();
     for (let j = 0; j < tools.length; j++) {
       const tool = tools[j];
       if (typeof tool !== 'object' || tool === null) {
@@ -96,6 +97,15 @@ function validatePayload(servicesPayload: unknown[]): string | null {
           return `${where} duplicate tool name '${rawName}' (tool names must be unique within a service)`;
         }
         toolNameKeys.add(nameKey);
+      }
+      // Also reject duplicate tool ids (matches the frontend, and DirtyContext keys
+      // per-tool state by id): a duplicate id isn't editable in the UI, so it would
+      // otherwise strand the workspace as viewable-but-unsaveable.
+      if (rawId) {
+        if (toolIds.has(rawId)) {
+          return `${where} duplicate tool id '${rawId}' (tool ids must be unique within a service)`;
+        }
+        toolIds.add(rawId);
       }
 
       // inputSchema/outputSchema: length (SCHEMA_MAX) then JSON-Schema validity.
