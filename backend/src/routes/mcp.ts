@@ -344,11 +344,18 @@ mcp.all('/:widHash/mcp/:serviceId', async (c) => {
     } catch {
       // No/invalid JSON body (e.g. GET) — id stays null.
     }
-    return c.json({
-      jsonrpc: '2.0',
-      id,
-      error: { code: -32602, message: `Service "${serviceId}" not found` },
-    });
+    // Mirror the CORS the found path sets via createMcpHandler, so a browser-based
+    // MCP client hitting a stale/deleted serviceId can actually read this crafted
+    // JSON-RPC error instead of getting an opaque CORS failure.
+    return c.json(
+      {
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32602, message: `Service "${serviceId}" not found` },
+      },
+      200,
+      { 'Access-Control-Allow-Origin': '*' },
+    );
   }
 
   const route = `/workspace/${widHash}/mcp/${serviceId}`;
