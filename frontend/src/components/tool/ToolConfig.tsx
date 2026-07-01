@@ -28,8 +28,9 @@ export function ToolConfig({ tool, mcpId }: ToolConfigProps) {
   const handleUpdate = (updates: Partial<Tool>) => {
     updateTool(mcpId, tool.id, updates);
 
-    // Update tab title if name changed
-    if (updates.name) {
+    // Update tab title if name changed (use !== undefined so clearing the name to
+    // '' also syncs the tab title, not just a truthy value).
+    if (updates.name !== undefined) {
       const tab = findTab(mcpId, tool.id);
       if (tab) {
         updateTab(tab.id, { title: updates.name });

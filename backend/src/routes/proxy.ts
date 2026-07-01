@@ -27,9 +27,7 @@ interface ToolPayload {
 /** Convert KeyValueItem[] to Record<string, string> (only enabled items with
  * non-empty keys). Defensive against a missing/non-array field or ill-typed rows. */
 function kvToRecord(items: KeyValueItem[] | undefined | null): Record<string, string> | null {
-  // Object.create(null): null prototype so a `__proto__` key becomes a real own
-  // property instead of being silently dropped.
-  const result: Record<string, string> = Object.create(null);
+  const result: Record<string, string> = {};
   if (Array.isArray(items)) {
     for (const item of items) {
       // `enabled !== false` (default-on) matches the frontend normalize, so a KV

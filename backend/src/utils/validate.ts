@@ -9,7 +9,7 @@
  *  - URL    : non-empty, ≤256 chars, parses as a valid URL ({{var}} allowed)
  *  - name   : non-empty, ≤32 chars, only letters/digits/underscore
  *  - text   : optional, ≤2048 chars, any characters (descriptions/schemas/values)
- *  - KV     : key follows the name class, value/description follow the text class
+ *  - KV     : key follows the KV-key class, value/description follow the text class
  */
 
 export const LIMITS = {
@@ -119,7 +119,7 @@ export function validateText(value: unknown, label: string, max: number = LIMITS
 }
 
 /**
- * KeyValue array: each row's key follows the name class, value/description the
+ * KeyValue array: each row's key follows the KV-key class, value/description the
  * text class. Blank rows (empty key) are placeholder/UI rows ignored at runtime,
  * so their key is not required — but value/description lengths are still bounded.
  */
