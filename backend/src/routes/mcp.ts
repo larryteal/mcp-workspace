@@ -293,7 +293,9 @@ function binaryContentBlock(result: ExecuteResult, serviceId: string, toolName: 
   };
 }
 
-// Headers that should NOT be forwarded from MCP client to upstream API
+// Headers that should NOT be forwarded from MCP client to upstream API.
+// The whole `cf-*` and `x-forwarded-*` families are stripped by prefix below
+// (Cloudflare edge / proxy infra headers), so they aren't enumerated here.
 const EXCLUDED_HEADERS = new Set([
   'host',
   'content-length',
@@ -304,14 +306,17 @@ const EXCLUDED_HEADERS = new Set([
   'connection',
   'mcp-session-id',
   'mcp-protocol-version',
-  'cf-connecting-ip',
-  'cf-ipcountry',
-  'cf-ray',
-  'cf-visitor',
-  'x-forwarded-for',
-  'x-forwarded-proto',
   'x-real-ip',
 ]);
+
+/** Whether a client header should be dropped rather than forwarded upstream. */
+function isExcludedHeader(lowerKey: string): boolean {
+  return (
+    EXCLUDED_HEADERS.has(lowerKey) ||
+    lowerKey.startsWith('cf-') ||
+    lowerKey.startsWith('x-forwarded-')
+  );
+}
 
 // All methods on /workspace/:widHash/mcp/:serviceId — Streamable HTTP
 // Note: widHash is MD5 hash of workspace ID (for security - prevents inferring edit URL from MCP URL)
@@ -322,8 +327,7 @@ mcp.all('/:widHash/mcp/:serviceId', async (c) => {
   // Extract client headers (excluding protocol/transport headers)
   const clientHeaders: Record<string, string> = {};
   c.req.raw.headers.forEach((value, key) => {
-    const lowerKey = key.toLowerCase();
-    if (!EXCLUDED_HEADERS.has(lowerKey)) {
+    if (!isExcludedHeader(key.toLowerCase())) {
       clientHeaders[key] = value;
     }
   });
