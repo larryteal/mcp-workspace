@@ -25,6 +25,12 @@ const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 // upstream can't tie up the request indefinitely.
 const REQUEST_TIMEOUT_MS = 30_000;
 
+// WHATWG "redirect status" codes. We do not follow redirects (see the fetch call
+// below): the internal-host guard only validates the initial URL, so a redirect
+// could reach an internal host it rejected. These map to the generic upstream
+// error when encountered.
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
 export async function executeHttpRequest(config: {
   method: string;
   url: string;
@@ -52,9 +58,9 @@ export async function executeHttpRequest(config: {
 
   // Internal-host guard: outside local dev, refuse to proxy to localhost/loopback
   // or private/link-local ranges so a configured tool can't make the server reach
-  // internal services or cloud metadata. Redirects are forbidden (fetch
-  // redirect:'error' below), so this initial-URL check can't be bypassed by a
-  // redirect. Residual gap: a DNS name that resolves to an internal IP is not
+  // internal services or cloud metadata. Redirects are refused (redirect:'manual'
+  // + explicit 3xx rejection below), so this initial-URL check can't be bypassed
+  // by a redirect. Residual gap: a DNS name that resolves to an internal IP is not
   // caught (no resolution here) — best-effort, not airtight SSRF.
   if (!config.allowInternalHosts && isInternalHost(url.hostname)) {
     throw new Error(`Requests to internal/private addresses are not allowed in this environment: ${url.hostname}`);
@@ -118,14 +124,26 @@ export async function executeHttpRequest(config: {
     method,
     headers,
     body: requestBody,
-    // Forbid redirects: the internal-host guard only validates the initial URL,
-    // so following a redirect could reach an internal host the guard rejected
-    // (e.g. an external URL returning 302 → http://10.0.0.5). `error` makes a
-    // redirect response throw, which maps to the generic upstream error.
-    redirect: 'error',
+    // Do not follow redirects: the internal-host guard only validates the initial
+    // URL, so following a redirect could reach an internal host the guard rejected
+    // (e.g. an external URL returning 302 → http://10.0.0.5). Workers' fetch does
+    // NOT support redirect:'error' (it throws "Invalid redirect value, must be one
+    // of 'follow' or 'manual'"), so use 'manual' — which returns the raw 3xx
+    // response without following it — and reject any redirect status ourselves
+    // below. (Following redirects with per-hop host validation is a possible
+    // future enhancement; for now redirects are simply refused.)
+    redirect: 'manual',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   const elapsed = Date.now() - start;
+
+  // Refuse redirects (see redirect:'manual' above). Under 'manual' the Workers
+  // runtime surfaces the redirect response itself with its real 3xx status (it
+  // does not follow it), so we reject the WHATWG redirect statuses here. Throwing
+  // maps to the generic upstream error rather than exposing the redirect target.
+  if (REDIRECT_STATUSES.has(response.status)) {
+    throw new Error(`Redirects are not allowed (upstream returned ${response.status})`);
+  }
 
   // Guard against oversized responses: reject early on a declared length...
   const declaredLen = response.headers.get('content-length');

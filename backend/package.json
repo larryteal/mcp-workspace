@@ -3,6 +3,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "deploy": "wrangler deploy --minify",
     "deploy:staging": "wrangler deploy --env staging --minify",
     "deploy:production": "wrangler deploy --env production --minify",
@@ -15,8 +17,17 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.17.0",
     "@cloudflare/workers-types": "^4.20260129.0",
     "typescript": "^6.0.3",
+    "vitest": "4.1.9",
     "wrangler": "^4.4.0"
+  },
+  "pnpm": {
+    "//": "vitest + pool are pinned exact (pre-1.0 pool, narrow vitest peer range — a ^ bump drifts them apart in CI). onlyBuiltDependencies commits which native postinstalls may run, so a fresh clone/CI is deterministic instead of relying on local pnpm approval state.",
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd"
+    ]
   }
 }
