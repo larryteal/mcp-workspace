@@ -16,6 +16,12 @@ function normalizeServices(parsed: unknown): MCPService[] {
     .filter((s): s is MCPService => !!s && typeof s === 'object')
     .map((s) => ({
       ...s,
+      // Default service scalar fields — a service missing `name` would otherwise
+      // crash slugify()/inputs (backend allows fields to be absent; data may also
+      // be legacy/API-created/hand-edited).
+      name: typeof s.name === 'string' ? s.name : '',
+      version: typeof s.version === 'string' ? s.version : '',
+      description: typeof s.description === 'string' ? s.description : '',
       tools: Array.isArray(s.tools)
         ? s.tools.filter((t) => !!t && typeof t === 'object').map(normalizeTool)
         : [],
