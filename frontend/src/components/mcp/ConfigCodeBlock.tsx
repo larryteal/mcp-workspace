@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Check, Terminal, Link, FileJson } from 'lucide-react';
 import { useWorkspace } from '@/context/WorkspaceContext';
 import { md5 } from '@/utils/md5';
+import { copyToClipboard } from '@/utils/clipboard';
 import type { MCPService } from '@/types';
 import styles from './ConfigCodeBlock.module.css';
 
@@ -52,7 +53,7 @@ export function ConfigCodeBlock({ service }: ConfigCodeBlockProps) {
         textToCopy = mcpUrl;
         break;
     }
-    await navigator.clipboard.writeText(textToCopy);
+    if (!(await copyToClipboard(textToCopy))) return;
     setCopiedType(type);
     setTimeout(() => setCopiedType(null), 2000);
   };

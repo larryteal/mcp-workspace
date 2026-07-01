@@ -31,11 +31,6 @@ function DirtyStateSync() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasAnyDirty]);
 
-  // Initialize DirtyContext with current services on mount
-  useEffect(() => {
-    updateCurrentState(services);
-  }, []);
-
   // Set up callback to receive services updates
   useEffect(() => {
     setOnServicesChange(updateCurrentState);
@@ -46,7 +41,7 @@ function DirtyStateSync() {
     setOnServerSnapshotLoaded(setServerSnapshot);
   }, [setOnServerSnapshotLoaded, setServerSnapshot]);
 
-  // Sync services changes
+  // Push current services into DirtyContext (also covers the initial mount).
   useEffect(() => {
     updateCurrentState(services);
   }, [services, updateCurrentState]);

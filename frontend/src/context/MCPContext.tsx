@@ -252,7 +252,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
     };
     setServices(prev => [...prev, newService]);
     return id;
-  }, [services]);
+  }, []);
 
   const addTool = useCallback((mcpId: string) => {
     const id = generateUUID();
@@ -280,7 +280,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
       )
     );
     return id;
-  }, [services]);
+  }, []);
 
   const deleteService = useCallback((id: string) => {
     setServices(prev => prev.filter(s => s.id !== id));

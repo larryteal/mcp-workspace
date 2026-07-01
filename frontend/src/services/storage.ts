@@ -1,5 +1,10 @@
 import axios from 'axios';
-import type { MCPService, Tool, KeyValueItem, ProxyTestResponse } from '@/types';
+import type { MCPService, Tool, KeyValueItem, HttpMethod, BodyType, ProxyTestResponse } from '@/types';
+
+// Canonical enum values (mirror utils/validate.ts) — used to coerce legacy/API
+// data so an unknown/wrong-case method or bodyType doesn't desync the Select.
+const METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']);
+const BODY_TYPES = new Set(['none', 'raw-json', 'form-data', 'x-www-form-urlencoded', 'binary']);
 
 const API_BASE = import.meta.env.VITE_MCP_API_BASE_URL ?? '';
 
@@ -70,9 +75,11 @@ function normalizeTool(t: Tool, index: number): Tool {
     id: typeof t.id === 'string' && t.id ? t.id : `tool-${index}`,
     name: typeof t.name === 'string' ? t.name : '',
     description: typeof t.description === 'string' ? t.description : '',
-    method: t.method || 'GET',
+    method: (typeof t.method === 'string' && METHODS.has(t.method.toUpperCase())
+      ? t.method.toUpperCase()
+      : 'GET') as HttpMethod,
     url: typeof t.url === 'string' ? t.url : '',
-    bodyType: t.bodyType || 'none',
+    bodyType: (typeof t.bodyType === 'string' && BODY_TYPES.has(t.bodyType) ? t.bodyType : 'none') as BodyType,
     bodyContent: typeof t.bodyContent === 'string' ? t.bodyContent : '',
     inputSchema: typeof t.inputSchema === 'string' ? t.inputSchema : '',
     outputSchema: typeof t.outputSchema === 'string' ? t.outputSchema : '',

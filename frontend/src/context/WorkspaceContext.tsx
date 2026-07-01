@@ -53,7 +53,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (urlWorkspaceId && urlWorkspaceId !== workspaceId) {
       setWorkspaceId(urlWorkspaceId);
     }
-  }, [urlWorkspaceId]);
+  }, [urlWorkspaceId, workspaceId]);
 
   // Redirect to workspace URL if on root
   useEffect(() => {

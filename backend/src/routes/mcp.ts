@@ -47,7 +47,9 @@ interface MCPService {
  * non-array field and null/ill-typed rows (would otherwise throw at call time).
  */
 function kvToRecord(items: KeyValueItem[] | undefined | null): Record<string, string> | null {
-  const result: Record<string, string> = {};
+  // Object.create(null): a null prototype so a key like `__proto__` becomes a real
+  // own property (on a plain {} it would be a no-op and the header silently dropped).
+  const result: Record<string, string> = Object.create(null);
   if (Array.isArray(items)) {
     for (const item of items) {
       // `enabled !== false` (default-on for absent/legacy data) matches the

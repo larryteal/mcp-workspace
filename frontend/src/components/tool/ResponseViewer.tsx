@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { SubTabs } from '@/components/common';
 import { KeyValueTable } from './KeyValueTable';
+import { copyToClipboard } from '@/utils/clipboard';
 import type { ApiResponse, KeyValueItem } from '@/types';
 import styles from './ResponseViewer.module.css';
 
@@ -40,8 +41,7 @@ export function ResponseViewer({ response, loading }: ResponseViewerProps) {
   const prettyBody = useMemo(() => (response ? formatCode(response.body) : ''), [response]);
 
   const handleCopy = async () => {
-    if (response?.body) {
-      await navigator.clipboard.writeText(response.body);
+    if (response?.body && (await copyToClipboard(response.body))) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
