@@ -15,10 +15,6 @@ interface DirtyContextType {
   isOverviewDirty: (mcpId: string) => boolean;
   /** Check if any item is dirty */
   hasAnyDirty: () => boolean;
-  /** Get all dirty MCP IDs */
-  getDirtyMcpIds: () => string[];
-  /** Get all dirty tool IDs for a specific MCP */
-  getDirtyToolIds: (mcpId: string) => string[];
   /** Update the current services state for comparison */
   updateCurrentState: (services: MCPService[]) => void;
   /** Reset server snapshot (e.g., after initial load from server, or after save) */
@@ -199,28 +195,6 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
     return dirty.serviceDirty.size > 0 || dirty.hasDeletedService;
   }, [dirty]);
 
-  const getDirtyMcpIds = useCallback((): string[] => {
-    // Iterate the currentServices array (order + duplicate-id repeats preserved,
-    // matching the old code).
-    const dirtyIds: string[] = [];
-    for (const service of currentServices) {
-      if (dirty.serviceDirty.has(service.id)) dirtyIds.push(service.id);
-    }
-    return dirtyIds;
-  }, [dirty, currentServices]);
-
-  const getDirtyToolIds = useCallback((mcpId: string): string[] => {
-    const service = currentServicesMap.get(mcpId);
-    if (!service) return [];
-    const toolMap = dirty.toolResult.get(mcpId);
-    if (!toolMap) return [];
-    const dirtyIds: string[] = [];
-    for (const tool of service.tools) {
-      if (toolMap.get(tool.id)) dirtyIds.push(tool.id);
-    }
-    return dirtyIds;
-  }, [dirty, currentServicesMap]);
-
   return (
     <DirtyContext.Provider
       value={{
@@ -228,8 +202,6 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
         isToolDirty,
         isOverviewDirty,
         hasAnyDirty,
-        getDirtyMcpIds,
-        getDirtyToolIds,
         updateCurrentState,
         setServerSnapshot,
       }}

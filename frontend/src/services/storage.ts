@@ -14,8 +14,14 @@ function normalizeServices(parsed: unknown): MCPService[] {
   if (!Array.isArray(parsed)) return [];
   return parsed
     .filter((s): s is MCPService => !!s && typeof s === 'object')
-    .map((s) => ({
+    .map((s, i) => ({
       ...s,
+      // Default the id (backend treats it as optional). It's the React key AND the
+      // key into currentServicesMap/serverSnapshotMap/toolResult in DirtyContext —
+      // two id-less services would collapse to one Map entry and break dirty
+      // tracking/selection. Index-based fallback is deterministic so the same
+      // stored data normalizes to the same ids across reads (no spurious dirty).
+      id: typeof s.id === 'string' && s.id ? s.id : `svc-${i}`,
       // Default service scalar fields — a service missing `name` would otherwise
       // crash slugify()/inputs (backend allows fields to be absent; data may also
       // be legacy/API-created/hand-edited).
@@ -23,7 +29,7 @@ function normalizeServices(parsed: unknown): MCPService[] {
       version: typeof s.version === 'string' ? s.version : '',
       description: typeof s.description === 'string' ? s.description : '',
       tools: Array.isArray(s.tools)
-        ? s.tools.filter((t) => !!t && typeof t === 'object').map(normalizeTool)
+        ? s.tools.filter((t) => !!t && typeof t === 'object').map((t, ti) => normalizeTool(t, ti))
         : [],
     }));
 }
@@ -55,9 +61,13 @@ function normalizeKvItems(items: unknown): KeyValueItem[] {
  * created) tool may omit fields — and `KeyValueTable`/inputs would then crash,
  * warn (uncontrolled input), or corrupt edits (missing row ids). See normalizeKvItems.
  */
-function normalizeTool(t: Tool): Tool {
+function normalizeTool(t: Tool, index: number): Tool {
   return {
     ...t,
+    // Default the id (backend treats it as optional) — it's the React key and the
+    // per-service toolResult key in DirtyContext. Index-based fallback is stable
+    // across reads (mirrors normalizeKvItems / normalizeServices).
+    id: typeof t.id === 'string' && t.id ? t.id : `tool-${index}`,
     name: typeof t.name === 'string' ? t.name : '',
     description: typeof t.description === 'string' ? t.description : '',
     method: t.method || 'GET',
