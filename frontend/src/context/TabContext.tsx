@@ -8,6 +8,8 @@ interface TabContextType {
   openTab: (tab: Omit<Tab, 'id'>) => string;
   closeTab: (id: string) => void;
   closeTabsByMcpId: (mcpId: string) => void;
+  /** Close every tab for which `isValid` returns false, atomically. */
+  pruneTabs: (isValid: (tab: Tab) => boolean) => void;
   updateTab: (id: string, updates: Partial<Tab>) => void;
   findTab: (mcpId: string, toolId?: string) => Tab | undefined;
 }
@@ -68,6 +70,23 @@ export function TabProvider({ children }: { children: ReactNode }) {
     });
   }, [activeTabId]);
 
+  // Close all invalid tabs in ONE pass. Doing this with repeated closeTab() calls
+  // is buggy: each closeTab reads activeTabId from its render closure, so across a
+  // synchronous multi-close loop it can't see an active reassignment made by an
+  // earlier iteration and leaves activeTabId dangling at a just-closed tab.
+  const pruneTabs = useCallback((isValid: (tab: Tab) => boolean) => {
+    setTabs(prev => {
+      const survivors = prev.filter(isValid);
+      if (survivors.length === prev.length) return prev; // nothing pruned
+      // Reassign active only if the current active tab didn't survive (functional
+      // updater reads the live activeTabId, so no stale-closure problem).
+      setActiveTabId(cur =>
+        cur && survivors.some(t => t.id === cur) ? cur : survivors.length > 0 ? survivors[0].id : null,
+      );
+      return survivors;
+    });
+  }, []);
+
   const updateTab = useCallback((id: string, updates: Partial<Tab>) => {
     setTabs(prev =>
       prev.map(t => (t.id === id ? { ...t, ...updates } : t))
@@ -91,6 +110,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
         openTab,
         closeTab,
         closeTabsByMcpId,
+        pruneTabs,
         updateTab,
         findTab,
       }}

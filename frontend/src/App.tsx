@@ -7,6 +7,7 @@ import { TabProvider, useTabs } from '@/context/TabContext';
 import { DirtyProvider, useDirty } from '@/context/DirtyContext';
 import { WorkspaceProvider, useWorkspace } from '@/context/WorkspaceContext';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import type { Tab } from '@/types';
 
 /**
  * Component to sync MCPContext state changes to DirtyContext
@@ -152,7 +153,7 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setSelectedMcpId, setSelectedToolId, isLoading, dataLoaded, getService, getTool } = useMCP();
-  const { activeTabId, tabs, openTab, closeTab, updateTab } = useTabs();
+  const { activeTabId, tabs, openTab, pruneTabs, updateTab } = useTabs();
   const { workspaceId } = useWorkspace();
 
   // Track if initial URL navigation has been handled (prevents reopening tabs after intentional close)
@@ -166,21 +167,23 @@ function AppContent() {
   // after a sync. Local deletes already close their own tab before removal.)
   useEffect(() => {
     if (!dataLoaded) return;
-    for (const tab of tabs) {
+    const isValid = (tab: Tab): boolean => {
       const service = getService(tab.mcpId);
-      const tool = tab.toolId ? getTool(tab.mcpId, tab.toolId) : undefined;
-      const valid = !!service && (tab.type === 'overview' || !!tool);
-      if (!valid) {
-        closeTab(tab.id);
-        continue;
-      }
-      // Keep the tab title in sync with the tool's current name (e.g. after a
-      // Sync renamed it on the server); overview tabs have a static title.
-      if (tab.type === 'tool' && tool && tab.title !== tool.name) {
-        updateTab(tab.id, { title: tool.name });
+      return !!service && (tab.type === 'overview' || (!!tab.toolId && !!getTool(tab.mcpId, tab.toolId)));
+    };
+    // Keep surviving tool tabs' titles in sync with the current tool name (e.g.
+    // after a Sync renamed it on the server); overview tabs have a static title.
+    for (const tab of tabs) {
+      if (!isValid(tab)) continue;
+      if (tab.type === 'tool' && tab.toolId) {
+        const tool = getTool(tab.mcpId, tab.toolId);
+        if (tool && tab.title !== tool.name) updateTab(tab.id, { title: tool.name });
       }
     }
-  }, [dataLoaded, tabs, getService, getTool, closeTab, updateTab]);
+    // Close all invalid tabs in one atomic pass (repeated closeTab() in a loop
+    // leaves activeTabId dangling — see TabContext.pruneTabs).
+    pruneTabs(isValid);
+  }, [dataLoaded, tabs, getService, getTool, pruneTabs, updateTab]);
 
   // Handle direct URL navigation - only on initial load when no tabs exist
   useEffect(() => {
