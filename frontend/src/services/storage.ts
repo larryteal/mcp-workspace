@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { MCPService, Tool, ProxyTestResponse } from '@/types';
+import type { MCPService, Tool, KeyValueItem, ProxyTestResponse } from '@/types';
 
 const API_BASE = import.meta.env.VITE_MCP_API_BASE_URL ?? '';
 
@@ -23,19 +23,48 @@ function normalizeServices(parsed: unknown): MCPService[] {
 }
 
 /**
- * Coerce a tool's array fields to arrays. The backend treats `params`/`headers`/
- * `cookies`/`bodyFormData`/`bodyUrlEncoded` as optional, so a saved (or legacy/
- * API-created) tool may omit them — and `KeyValueTable` does `items.map(...)`,
- * which would throw and crash the editor (then re-crash on reload via local-first).
+ * Coerce a KeyValue array to well-formed rows. Every row must have a unique,
+ * stable `id`: KeyValueTable uses it as the React key AND the edit-match key, so
+ * rows missing `id` (undefined === undefined) would all edit together. The id
+ * fallback is index-based (deterministic) so the same stored data normalizes to
+ * the same ids across reads — otherwise the services vs snapshot copies would
+ * diff and show a spurious dirty state.
+ */
+function normalizeKvItems(items: unknown): KeyValueItem[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((it): it is Record<string, unknown> => !!it && typeof it === 'object')
+    .map((it, i) => ({
+      id: typeof it.id === 'string' && it.id ? it.id : `kv-${i}`,
+      enabled: it.enabled !== false, // default true
+      key: typeof it.key === 'string' ? it.key : '',
+      value: typeof it.value === 'string' ? it.value : '',
+      description: typeof it.description === 'string' ? it.description : '',
+    }));
+}
+
+/**
+ * Coerce a tool to the shape the UI assumes. The backend treats KV arrays as
+ * optional and doesn't guarantee row/scalar shape, so a saved (or legacy/API-
+ * created) tool may omit fields — and `KeyValueTable`/inputs would then crash,
+ * warn (uncontrolled input), or corrupt edits (missing row ids). See normalizeKvItems.
  */
 function normalizeTool(t: Tool): Tool {
   return {
     ...t,
-    params: Array.isArray(t.params) ? t.params : [],
-    headers: Array.isArray(t.headers) ? t.headers : [],
-    cookies: Array.isArray(t.cookies) ? t.cookies : [],
-    bodyFormData: Array.isArray(t.bodyFormData) ? t.bodyFormData : [],
-    bodyUrlEncoded: Array.isArray(t.bodyUrlEncoded) ? t.bodyUrlEncoded : [],
+    name: typeof t.name === 'string' ? t.name : '',
+    description: typeof t.description === 'string' ? t.description : '',
+    method: t.method || 'GET',
+    url: typeof t.url === 'string' ? t.url : '',
+    bodyType: t.bodyType || 'none',
+    bodyContent: typeof t.bodyContent === 'string' ? t.bodyContent : '',
+    inputSchema: typeof t.inputSchema === 'string' ? t.inputSchema : '',
+    outputSchema: typeof t.outputSchema === 'string' ? t.outputSchema : '',
+    params: normalizeKvItems(t.params),
+    headers: normalizeKvItems(t.headers),
+    cookies: normalizeKvItems(t.cookies),
+    bodyFormData: normalizeKvItems(t.bodyFormData),
+    bodyUrlEncoded: normalizeKvItems(t.bodyUrlEncoded),
   };
 }
 

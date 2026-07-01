@@ -88,6 +88,14 @@ export function validateUrl(value: unknown, label: string): string | null {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return `${label} must be an http(s) URL`;
   }
+  // Reject a {{placeholder}} in the authority (userinfo/host/port): the host must
+  // be literal. Otherwise an untrusted caller arg could redirect the request (with
+  // the tool's configured secret headers) to a host of their choosing. Placeholders
+  // in the path/query are fine (and percent-encoded at call time).
+  const authority = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/([^/?#]*)/.exec(value);
+  if (authority && authority[1].includes('{{')) {
+    return `${label} host must be literal — {{placeholders}} are only allowed in the path/query`;
+  }
   return null;
 }
 

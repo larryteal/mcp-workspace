@@ -152,7 +152,7 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const { setSelectedMcpId, setSelectedToolId, isLoading, dataLoaded, getService, getTool } = useMCP();
-  const { activeTabId, tabs, openTab, closeTab } = useTabs();
+  const { activeTabId, tabs, openTab, closeTab, updateTab } = useTabs();
   const { workspaceId } = useWorkspace();
 
   // Track if initial URL navigation has been handled (prevents reopening tabs after intentional close)
@@ -167,12 +167,20 @@ function AppContent() {
   useEffect(() => {
     if (!dataLoaded) return;
     for (const tab of tabs) {
-      const valid =
-        !!getService(tab.mcpId) &&
-        (tab.type === 'overview' || (!!tab.toolId && !!getTool(tab.mcpId, tab.toolId)));
-      if (!valid) closeTab(tab.id);
+      const service = getService(tab.mcpId);
+      const tool = tab.toolId ? getTool(tab.mcpId, tab.toolId) : undefined;
+      const valid = !!service && (tab.type === 'overview' || !!tool);
+      if (!valid) {
+        closeTab(tab.id);
+        continue;
+      }
+      // Keep the tab title in sync with the tool's current name (e.g. after a
+      // Sync renamed it on the server); overview tabs have a static title.
+      if (tab.type === 'tool' && tool && tab.title !== tool.name) {
+        updateTab(tab.id, { title: tool.name });
+      }
     }
-  }, [dataLoaded, tabs, getService, getTool, closeTab]);
+  }, [dataLoaded, tabs, getService, getTool, closeTab, updateTab]);
 
   // Handle direct URL navigation - only on initial load when no tabs exist
   useEffect(() => {
