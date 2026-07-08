@@ -24,7 +24,6 @@
     "wrangler": "^4.4.0"
   },
   "pnpm": {
-    "//": "vitest + pool are pinned exact (pre-1.0 pool, narrow vitest peer range — a ^ bump drifts them apart in CI). onlyBuiltDependencies commits which native postinstalls may run, so a fresh clone/CI is deterministic instead of relying on local pnpm approval state.",
     "onlyBuiltDependencies": [
       "esbuild",
       "workerd"
