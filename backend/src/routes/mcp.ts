@@ -182,7 +182,7 @@ async function buildMcpServer(
             ...resolved,
             allowInternalHosts,
           });
-          return toToolResult(result, serviceId, name, hasOutputSchema);
+          return toToolResult(result, name, hasOutputSchema);
         } catch (err) {
           // Upstream/transport failure is a tool execution error (isError per
           // spec). Keep technical detail (URL, size, network message) out of the
@@ -230,7 +230,6 @@ function compileToolSchema(raw: string | undefined, field: string): z.ZodTypeAny
  */
 function toToolResult(
   result: ExecuteResult,
-  serviceId: string,
   toolName: string,
   hasOutputSchema: boolean,
 ) {
@@ -241,7 +240,7 @@ function toToolResult(
   // reject the result (no structuredContent) — outputSchema and binary output
   // are mutually exclusive by design.
   if (result.encoding === 'base64') {
-    const content = [binaryContentBlock(result, serviceId, toolName)];
+    const content = [binaryContentBlock(result, toolName)];
     return isError ? { content, isError: true } : { content };
   }
 
@@ -268,7 +267,7 @@ function toToolResult(
   return isError ? { content, isError: true } : { content };
 }
 
-function binaryContentBlock(result: ExecuteResult, serviceId: string, toolName: string) {
+function binaryContentBlock(result: ExecuteResult, toolName: string) {
   if (result.body === '') {
     // Empty upstream body: return an empty text block (an empty image/resource
     // block would be invalid) without injecting any synthesized description.
@@ -286,7 +285,7 @@ function binaryContentBlock(result: ExecuteResult, serviceId: string, toolName: 
   return {
     type: 'resource' as const,
     resource: {
-      uri: `mcp-proxy://${encodeURIComponent(serviceId)}/${encodeURIComponent(toolName)}`,
+      uri: `mcp-proxy://tool/${encodeURIComponent(toolName)}`,
       mimeType: mime,
       blob: result.body,
     },
@@ -368,7 +367,7 @@ mcp.all('/:widHash/mcp/:serviceId', async (c) => {
       {
         jsonrpc: '2.0',
         id,
-        error: { code: -32602, message: `Service "${serviceId}" not found` },
+        error: { code: -32602, message: 'Service not found' },
       },
       200,
       corsHeaders,

@@ -53,7 +53,7 @@ function validatePayload(servicesPayload: unknown[]): string | null {
     // MCP endpoint (services.find by id) — reject, matching the frontend check.
     if (typeof s.id === 'string' && s.id) {
       if (serviceIds.has(s.id)) {
-        return `services[${i}] duplicate service id '${s.id}'`;
+        return `services[${i}] duplicate service id`;
       }
       serviceIds.add(s.id);
     }
@@ -103,7 +103,7 @@ function validatePayload(servicesPayload: unknown[]): string | null {
       // otherwise strand the workspace as viewable-but-unsaveable.
       if (rawId) {
         if (toolIds.has(rawId)) {
-          return `${where} duplicate tool id '${rawId}' (tool ids must be unique within a service)`;
+          return `${where} duplicate tool id (tool ids must be unique within a service)`;
         }
         toolIds.add(rawId);
       }

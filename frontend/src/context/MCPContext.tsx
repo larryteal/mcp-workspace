@@ -316,7 +316,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
     // Check duplicate MCP IDs
     const idCounts = services.filter(s => s.id === mcpId);
     if (idCounts.length > 1) {
-      return `MCP ID '${mcpId}' already exists`;
+      return 'Duplicate MCP id detected';
     }
 
     // Check duplicate tool IDs within this MCP
@@ -325,7 +325,7 @@ export function MCPProvider({ children }: { children: ReactNode }) {
       const toolIds = new Set<string>();
       for (const tool of service.tools) {
         if (toolIds.has(tool.id)) {
-          return `Tool ID '${tool.id}' already exists in this MCP`;
+          return 'Duplicate tool id detected in this MCP';
         }
         toolIds.add(tool.id);
       }
@@ -336,13 +336,13 @@ export function MCPProvider({ children }: { children: ReactNode }) {
 
   const validateAllBeforeSave = useCallback((): string | null => {
     const mcpIds = new Set<string>();
-    for (const service of services) {
+    for (const [si, service] of services.entries()) {
       if (mcpIds.has(service.id)) {
-        return `MCP ID '${service.id}' already exists`;
+        return 'Duplicate MCP id detected';
       }
       mcpIds.add(service.id);
 
-      const svcLabel = service.name || service.id;
+      const svcLabel = service.name || `#${si + 1}`;
 
       // Service-level field rules (mirror backend utils/validate.ts).
       const svcNameErr = validateName(service.name, `MCP '${svcLabel}' name`);
@@ -354,13 +354,13 @@ export function MCPProvider({ children }: { children: ReactNode }) {
 
       const toolIds = new Set<string>();
       const toolNameKeys = new Set<string>();
-      for (const tool of service.tools) {
+      for (const [ti, tool] of service.tools.entries()) {
         if (toolIds.has(tool.id)) {
-          return `Tool ID '${tool.id}' already exists in MCP '${svcLabel}'`;
+          return `Duplicate tool id detected in MCP '${svcLabel}'`;
         }
         toolIds.add(tool.id);
 
-        const toolLabel = tool.name || tool.id;
+        const toolLabel = tool.name || `#${ti + 1}`;
         const prefix = `Tool '${toolLabel}' in MCP '${svcLabel}'`;
 
         // Tool field rules (name, url, method, bodyType, text, KV) — shared with the Test action.
